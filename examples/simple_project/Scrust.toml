@@ -1,0 +1,14 @@
+[project]
+name = "CatchApple"
+output = "dist/catch_apple.sb3"
+
+[stage]
+path = "src/stage.sr"
+
+[[sprite]]
+name = "Bowl"
+path = "src/bowl.sr"
+
+[[sprite]]
+name = "Apple"
+path = "src/apple.sr"

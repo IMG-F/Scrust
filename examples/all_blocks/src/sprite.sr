@@ -1,0 +1,68 @@
+costume "costume1" "assets/sprite.svg";
+
+#[on_flag_clicked]
+fn start() {
+    // Motion
+    move_steps(10);
+    turn_right(15);
+    turn_left(15);
+    go_to(0, 0);
+    glide(1, 10, 10);
+    point_in_direction(90);
+    set_x_to(100);
+    set_y_to(100);
+    change_x_by(10);
+    change_y_by(10);
+    if_on_edge_bounce();
+    set_rotation_style("left-right");
+
+    // Looks
+    say("Hello!");
+    say_for("Hello!", 2);
+    think("Hmm...");
+    think_for("Hmm...", 2);
+    switch_costume_to("costume1");
+    next_costume();
+    // switch_backdrop_to("backdrop1");
+    // next_backdrop();
+    change_size_by(10);
+    set_size_to(100);
+    change_effect_by("color", 25);
+    set_effect_to("color", 0);
+    clear_graphic_effects();
+    show();
+    hide();
+    go_to_front_layer();
+    go_back_layer();
+    go_forward_layers(1);
+    go_backward_layers(1);
+
+    // Sound
+    // start_sound("pop");
+    stop_all_sounds();
+    change_volume_by(-10);
+    set_volume_to(100);
+
+    // Sensing
+    // touching("mouse");
+    // ask_and_wait("Name?");
+    reset_timer();
+    set_drag_mode("draggable");
+
+    // Control
+    wait(1);
+    // create_clone_of("myself");
+    // stop("all");
+
+    // Operators
+    say(join("Hello", " World"));
+    say(letter_of("Apple", 1));
+    say(length_of("Apple"));
+    if contains("Apple", "A") {
+        say("Contains A");
+    }
+    say(mod(10, 3));
+    say(round(3.5));
+    say(abs(-10));
+    say(sin(90));
+}

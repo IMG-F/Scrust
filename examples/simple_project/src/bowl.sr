@@ -1,0 +1,18 @@
+costume "bowl" "assets/bowl.svg";
+
+proc move_player(speed: number) {
+    if key_pressed("right arrow") {
+        change_x_by(speed);
+    }
+    if key_pressed("left arrow") {
+        change_x_by(0 - speed);
+    }
+}
+
+#[on_flag_clicked]
+fn main() {
+    go_to(0, -140);
+    forever {
+        move_player(10);
+    }
+}

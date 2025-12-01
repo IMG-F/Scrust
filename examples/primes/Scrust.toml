@@ -1,0 +1,10 @@
+[project]
+name = "Primes"
+output = "dist/primes.sb3"
+
+[stage]
+path = "src/stage.sr"
+
+[[sprite]]
+name = "Calculator"
+path = "src/calculator.sr"

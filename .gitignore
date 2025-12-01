@@ -1,0 +1,19 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Scrust
+/examples/*/dist
+/dist
+
+# Docs
+/docs/node_modules
+/docs/.vitepress/dist
+/docs/.vitepress/cache
+
+# System
+.DS_Store
+Thumbs.db
+
+# Notes
+scratch.md

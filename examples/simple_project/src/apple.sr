@@ -1,0 +1,28 @@
+/// Spawns apples randomly
+costume "apple" "assets/apple.svg";
+sound "pop" "assets/pop.wav";
+
+#[on_flag_clicked]
+fn spawner() {
+    hide();
+    forever {
+        create_clone_of("myself");
+        wait(random(1.0, 3.0));
+    }
+}
+
+#[on_clone_start]
+fn fall() {
+    go_to(random(-200, 200), 180);
+    show();
+    until y_position() < -170 {
+        change_y_by(-5);
+        if touching("Bowl") {
+            SCORE += 1;
+            add_to_list("HIGHSCORES", SCORE);
+            start_sound("pop"); // Assuming sound exists or just generic
+            delete_this_clone();
+        }
+    }
+    delete_this_clone();
+}
