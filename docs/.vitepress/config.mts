@@ -35,6 +35,22 @@ export default defineConfig({
           { text: "Standard Blocks", link: "/guide/syntax/blocks" },
         ],
       },
+      {
+        text: "Block Status",
+        collapsed: true,
+        items: [
+          { text: "Overview", link: "/guide/status/" },
+          { text: "Motion", link: "/guide/status/motion" },
+          { text: "Looks", link: "/guide/status/looks" },
+          { text: "Sound", link: "/guide/status/sound" },
+          { text: "Events", link: "/guide/status/events" },
+          { text: "Control", link: "/guide/status/control" },
+          { text: "Sensing", link: "/guide/status/sensing" },
+          { text: "Operators", link: "/guide/status/operators" },
+          { text: "Variables & Lists", link: "/guide/status/variables" },
+          { text: "My Blocks", link: "/guide/status/my-blocks" },
+        ],
+      },
     ],
 
     socialLinks: [
