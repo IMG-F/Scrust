@@ -43,11 +43,11 @@ end
 Pauses the script until a condition is met.
 
 ```rust
-wait_until(touching("Edge"));
+wait_until(touching("edge"));
 ```
 
 <pre class="blocks">
-wait until &lt;touching [Edge v]?&gt;
+wait until &lt;touching [edge v]?&gt;
 </pre>
 
 ### Repeat Until
@@ -55,13 +55,13 @@ wait until &lt;touching [Edge v]?&gt;
 Repeats the loop until a condition is true.
 
 ```rust
-repeat_until(touching("Edge")) {
+until touching("edge") {
     move_steps(10);
 }
 ```
 
 <pre class="blocks">
-repeat until &lt;touching [Edge v]?&gt;
+repeat until &lt;touching [edge v]?&gt;
     move (10) steps
 end
 </pre>
@@ -85,15 +85,15 @@ end
 ### If-Else Statement
 
 ```rust
-if touching("Mouse-pointer") {
-    set_brightness_effect_to(50);
+if touching("mouse-pointer") {
+    set_effect_to("brightness", 50);
 } else {
-    set_brightness_effect_to(0);
+    set_effect_to("brightness", 0);
 }
 ```
 
 <pre class="blocks">
-if &lt;touching [Mouse-pointer v]?&gt; then
+if &lt;touching [mouse-pointer v]?&gt; then
     set [brightness v] effect to (50)
 else
     set [brightness v] effect to (0)

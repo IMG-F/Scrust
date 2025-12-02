@@ -27,6 +27,7 @@ pub struct ProcedureDef {
     pub params: Vec<Param>,
     pub body: Vec<Stmt>,
     pub is_warp: bool, // Run without screen refresh
+    pub comment: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -35,6 +36,7 @@ pub struct VariableDecl {
     pub ty: Type,
     pub init: Expr,
     pub visibility: Visibility,
+    pub comment: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +53,7 @@ pub struct Function {
     pub params: Vec<Param>,
     pub body: Vec<Stmt>,
     pub is_warp: bool,
+    pub comment: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -68,15 +71,16 @@ pub struct Param {
 #[derive(Debug, Clone)]
 pub enum Stmt {
     #[allow(dead_code)]
-    VarDecl(String, Expr),
-    Assign(String, Expr),
-    Expr(Expr),
-    If(Expr, Vec<Stmt>, Option<Vec<Stmt>>),
-    Repeat(Expr, Vec<Stmt>),
-    Forever(Vec<Stmt>),
-    Until(Expr, Vec<Stmt>),
+    VarDecl(String, Expr, Option<String>),
+    Assign(String, Expr, Option<String>),
+    Expr(Expr, Option<String>),
+    If(Expr, Vec<Stmt>, Option<Vec<Stmt>>, Option<String>),
+    Repeat(Expr, Vec<Stmt>, Option<String>),
+    Forever(Vec<Stmt>, Option<String>),
+    Until(Expr, Vec<Stmt>, Option<String>),
     #[allow(dead_code)]
-    Return(Option<Expr>),
+    Return(Option<Expr>, Option<String>),
+    Comment(String),
 }
 
 #[derive(Debug, Clone)]
@@ -89,7 +93,14 @@ pub enum Expr {
     #[allow(dead_code)]
     ProcCall(String, Vec<Expr>),
     BinOp(Box<Expr>, Op, Box<Expr>),
+    UnOp(UnOp, Box<Expr>),
     List(Vec<Expr>),
+}
+
+#[derive(Debug, Clone)]
+pub enum UnOp {
+    Not,
+    Neg,
 }
 
 #[derive(Debug, Clone)]

@@ -35,6 +35,11 @@ if score == 100 {
 }
 ```
 
+<pre class="blocks">
+if &lt;(score) = (100)&gt; then
+end
+</pre>
+
 ## Logic Operators
 
 Combine boolean conditions.
@@ -62,9 +67,20 @@ end
 | Scrust | Scratch |
 | :--- | :--- |
 | `join("Hello ", "World")` | `join [Hello ] [World]` |
+| `join("A", "B", "C")` | `join [A] (join [B] [C])` |
 | `letter_of("Apple", 1)` | `letter (1) of [Apple]` |
 | `length_of("Apple")` | `length of [Apple]` |
 | `contains("Apple", "a")` | `[Apple] contains [a]?` |
+
+```rust
+let s = join("Hello", " World");
+let nested = join("A", "B", "C", "D");
+```
+
+<pre class="blocks">
+set [s v] to (join [Hello] [ World])
+set [nested v] to (join [A] (join [B] (join [C] [D])))
+</pre>
 
 ## Math Functions
 
@@ -80,3 +96,14 @@ sqrt(9);    // Square root
 sin(90);    // Sine
 cos(0);     // Cosine
 ```
+
+<pre class="blocks">
+(10) mod (3)
+(round (3.5))
+([abs v] of (-10))
+([floor v] of (3.9))
+([ceiling v] of (3.1))
+([sqrt v] of (9))
+([sin v] of (90))
+([cos v] of (0))
+</pre>

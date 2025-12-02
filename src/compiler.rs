@@ -1,5 +1,6 @@
 use crate::ast::*;
 use crate::sb3::{Block, Comment, Costume, Field, Input, Mutation, NormalBlock, Sound, Target};
+use colored::*;
 use md5;
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -23,7 +24,6 @@ pub struct CompilerContext<'a> {
     pub costumes: Vec<Costume>,
     pub sounds: Vec<Sound>,
     pub comments: HashMap<String, Comment>,
-    pub pending_comment: Option<String>,
     pub global_variables: Option<&'a HashMap<String, (String, Value)>>,
     pub global_lists: Option<&'a HashMap<String, (String, Vec<Value>)>>,
     pub asset_instructions: Vec<(PathBuf, String)>,
@@ -44,12 +44,33 @@ impl<'a> CompilerContext<'a> {
             costumes: Vec::new(),
             sounds: Vec::new(),
             comments: HashMap::new(),
-            pending_comment: None,
             global_variables,
             global_lists,
             asset_instructions: Vec::new(),
             procedures: HashMap::new(),
             current_proc_args: None,
+        }
+    }
+
+    pub fn add_comment(&mut self, block_id: Option<String>, text: String, x: f64, y: f64) {
+        let comment_id = Uuid::new_v4().to_string();
+        self.comments.insert(
+            comment_id.clone(),
+            Comment {
+                block_id: block_id.clone(),
+                x,
+                y,
+                width: 200.0,
+                height: 200.0,
+                minimized: false,
+                text,
+            },
+        );
+
+        if let Some(bid) = block_id {
+            if let Some(Block::Normal(b)) = self.blocks.get_mut(&bid) {
+                b.comment = Some(comment_id);
+            }
         }
     }
 
@@ -73,8 +94,14 @@ impl<'a> CompilerContext<'a> {
 
     pub fn add_costume(&mut self, name: String, path: String, project_root: &Path) {
         let source_path = project_root.join(&path);
-        let content = fs::read(&source_path)
-            .unwrap_or_else(|_| panic!("Failed to read asset: {:?}", source_path));
+        let content = fs::read(&source_path).unwrap_or_else(|_| {
+            panic!(
+                "{}",
+                format!("Failed to read asset: {:?}", source_path)
+                    .red()
+                    .bold()
+            )
+        });
         let ext = source_path
             .extension()
             .and_then(|s| s.to_str())
@@ -97,8 +124,14 @@ impl<'a> CompilerContext<'a> {
 
     pub fn add_sound(&mut self, name: String, path: String, project_root: &Path) {
         let source_path = project_root.join(&path);
-        let content = fs::read(&source_path)
-            .unwrap_or_else(|_| panic!("Failed to read asset: {:?}", source_path));
+        let content = fs::read(&source_path).unwrap_or_else(|_| {
+            panic!(
+                "{}",
+                format!("Failed to read asset: {:?}", source_path)
+                    .red()
+                    .bold()
+            )
+        });
         let ext = source_path
             .extension()
             .and_then(|s| s.to_str())
@@ -137,6 +170,7 @@ impl<'a> CompilerContext<'a> {
             x: None,
             y: None,
             mutation: None,
+            comment: None,
         };
         self.blocks.insert(id.clone(), Block::Normal(block));
         id
@@ -158,6 +192,11 @@ pub fn compile_target(
             if !is_stage && decl.visibility == Visibility::Public {
                 continue;
             }
+
+            if let Some(comment) = &decl.comment {
+                ctx.add_comment(None, comment.clone(), 0.0, 0.0);
+            }
+
             if let Type::List = decl.ty {
                 let mut initial_values = Vec::new();
                 if let Expr::List(exprs) = &decl.init {
@@ -207,82 +246,36 @@ pub fn compile_target(
         }
     }
 
+    // Process Functions, Procedures and Comments
     let mut last_stmt_id: Option<String> = None;
 
-    // Process Functions, Procedures and Comments
     for item in &program.items {
         match item {
             Item::Comment(text) => {
-                ctx.pending_comment = Some(text.clone());
+                ctx.add_comment(None, text.clone(), 0.0, 0.0);
+                last_stmt_id = None; // Break chain
             }
             Item::Stmt(stmt) => {
-                let is_first = last_stmt_id.is_none();
+                // Top-level statements
                 if let Some(id) = compile_stmt(stmt, last_stmt_id.clone(), &mut ctx) {
-                    if is_first {
+                    // If this is the start of a new cluster, mark it as top-level
+                    if last_stmt_id.is_none() {
                         if let Some(Block::Normal(b)) = ctx.blocks.get_mut(&id) {
                             b.top_level = true;
                             b.x = Some(0.0);
                             b.y = Some(0.0);
                         }
                     }
-
-                    if let Some(comment_text) = ctx.pending_comment.take() {
-                        let comment_id = Uuid::new_v4().to_string();
-                        ctx.comments.insert(
-                            comment_id,
-                            Comment {
-                                block_id: Some(id.clone()),
-                                x: 0.0,
-                                y: 0.0,
-                                width: 200.0,
-                                height: 200.0,
-                                minimized: false,
-                                text: comment_text,
-                            },
-                        );
-                    }
                     last_stmt_id = Some(id);
                 }
             }
             Item::Function(func) => {
-                last_stmt_id = None;
-                if let Some(block_id) = compile_function(func, &mut ctx) {
-                    if let Some(comment_text) = ctx.pending_comment.take() {
-                        let comment_id = Uuid::new_v4().to_string();
-                        ctx.comments.insert(
-                            comment_id,
-                            Comment {
-                                block_id: Some(block_id),
-                                x: 0.0,
-                                y: 0.0,
-                                width: 200.0,
-                                height: 200.0,
-                                minimized: false,
-                                text: comment_text,
-                            },
-                        );
-                    }
-                }
+                compile_function(func, &mut ctx);
+                last_stmt_id = None; // Break chain
             }
             Item::Procedure(proc) => {
-                last_stmt_id = None;
-                if let Some(block_id) = compile_procedure(proc, &mut ctx) {
-                    if let Some(comment_text) = ctx.pending_comment.take() {
-                        let comment_id = Uuid::new_v4().to_string();
-                        ctx.comments.insert(
-                            comment_id,
-                            Comment {
-                                block_id: Some(block_id),
-                                x: 0.0,
-                                y: 0.0,
-                                width: 200.0,
-                                height: 200.0,
-                                minimized: false,
-                                text: comment_text,
-                            },
-                        );
-                    }
-                }
+                compile_procedure(proc, &mut ctx);
+                last_stmt_id = None; // Break chain
             }
             _ => {}
         }
@@ -369,6 +362,7 @@ fn compile_procedure(proc: &ProcedureDef, ctx: &mut CompilerContext) -> Option<S
             x: None,
             y: None,
             mutation: None,
+            comment: None,
         };
 
         ctx.blocks.insert(arg_id.clone(), Block::Normal(arg_block));
@@ -399,6 +393,7 @@ fn compile_procedure(proc: &ProcedureDef, ctx: &mut CompilerContext) -> Option<S
         x: None,
         y: None,
         mutation: Some(mutation),
+        comment: None,
     };
     ctx.blocks
         .insert(prototype_id.clone(), Block::Normal(prototype_block));
@@ -422,8 +417,14 @@ fn compile_procedure(proc: &ProcedureDef, ctx: &mut CompilerContext) -> Option<S
         x: Some(0.0), // TODO: layout
         y: Some(0.0),
         mutation: None,
+        comment: None,
     };
     let def_id = ctx.add_block(definition_block);
+
+    // Add comment
+    if let Some(comment) = &proc.comment {
+        ctx.add_comment(Some(def_id.clone()), comment.clone(), 0.0, 0.0);
+    }
 
     // Update parent of prototype
     if let Some(Block::Normal(b)) = ctx.blocks.get_mut(&prototype_id) {
@@ -482,6 +483,7 @@ fn compile_function(func: &Function, ctx: &mut CompilerContext) -> Option<String
             x: Some(0.0), // TODO: layout
             y: Some(0.0),
             mutation: None,
+            comment: None,
         };
 
         // Handle hat fields (e.g., key option)
@@ -542,6 +544,11 @@ fn compile_function(func: &Function, ctx: &mut CompilerContext) -> Option<String
         }
 
         let hat_id = ctx.add_block(hat_block);
+
+        if let Some(comment) = &func.comment {
+            ctx.add_comment(Some(hat_id.clone()), comment.clone(), 0.0, 0.0);
+        }
+
         prev_id = Some(hat_id.clone());
 
         // Compile body
@@ -561,43 +568,28 @@ fn compile_stmt(
     ctx: &mut CompilerContext,
 ) -> Option<String> {
     match stmt {
-        Stmt::Expr(Expr::Call(name, args)) | Stmt::Expr(Expr::ProcCall(name, args)) => {
+        Stmt::Expr(Expr::Call(name, args), comment)
+        | Stmt::Expr(Expr::ProcCall(name, args), comment) => {
             let (opcode, inputs, fields, mutation) = map_call(name, args, ctx);
-
-            // Identify shadow blocks before moving inputs
-            let mut shadow_ids = Vec::new();
-            for (_, input) in &inputs {
-                // We know input is Input::Generic here based on map_call implementation
-                // but for safety we keep the match, but we can suppress the warning or change logic
-                // Since Input only has one variant, we can direct access or keep as is.
-                // The warning says `if let` is irrefutable.
-                let Input::Generic(vals) = input;
-                if vals.len() >= 2 && vals[0] == json!(1) {
-                    if let Some(shadow_id) = vals[1].as_str() {
-                        shadow_ids.push(shadow_id.to_string());
-                    }
-                }
-            }
 
             let block = NormalBlock {
                 opcode,
                 next: None,
                 parent: parent_id.clone(),
-                inputs,
+                inputs: inputs.clone(),
                 fields,
                 shadow: false,
                 top_level: false,
                 x: None,
                 y: None,
                 mutation,
+                comment: None,
             };
             let id = ctx.add_block(block);
+            fix_input_parents(ctx, id.clone(), &inputs);
 
-            // Fix up parent pointers for shadow blocks
-            for shadow_id in shadow_ids {
-                if let Some(Block::Normal(shadow_block)) = ctx.blocks.get_mut(&shadow_id) {
-                    shadow_block.parent = Some(id.clone());
-                }
+            if let Some(c) = comment {
+                ctx.add_comment(Some(id.clone()), c.clone(), 0.0, 0.0);
             }
 
             // Link parent to this
@@ -609,7 +601,7 @@ fn compile_stmt(
 
             Some(id)
         }
-        Stmt::If(cond, then_block, else_block) => {
+        Stmt::If(cond, then_block, else_block, comment) => {
             let cond_input = compile_expr_input(cond, ctx);
 
             // Compile substacks
@@ -645,15 +637,21 @@ fn compile_stmt(
                 opcode: opcode.to_string(),
                 next: None,
                 parent: parent_id.clone(),
-                inputs,
+                inputs: inputs.clone(),
                 fields: HashMap::new(),
                 shadow: false,
                 top_level: false,
                 x: None,
                 y: None,
                 mutation: None,
+                comment: None,
             };
             let id = ctx.add_block(block);
+            fix_input_parents(ctx, id.clone(), &inputs);
+
+            if let Some(c) = comment {
+                ctx.add_comment(Some(id.clone()), c.clone(), 0.0, 0.0);
+            }
 
             if let Some(pid) = parent_id {
                 if let Some(Block::Normal(parent_block)) = ctx.blocks.get_mut(&pid) {
@@ -662,7 +660,7 @@ fn compile_stmt(
             }
             Some(id)
         }
-        Stmt::Forever(body) => {
+        Stmt::Forever(body, comment) => {
             let substack_id = compile_sequence(body, ctx);
             let mut inputs = HashMap::new();
             if let Some(sid) = substack_id {
@@ -675,15 +673,22 @@ fn compile_stmt(
                 opcode: "control_forever".to_string(),
                 next: None,
                 parent: parent_id.clone(),
-                inputs,
+                inputs: inputs.clone(),
                 fields: HashMap::new(),
                 shadow: false,
                 top_level: false,
                 x: None,
                 y: None,
                 mutation: None,
+                comment: None,
             };
             let id = ctx.add_block(block);
+            fix_input_parents(ctx, id.clone(), &inputs);
+
+            if let Some(c) = comment {
+                ctx.add_comment(Some(id.clone()), c.clone(), 0.0, 0.0);
+            }
+
             if let Some(pid) = parent_id {
                 if let Some(Block::Normal(parent_block)) = ctx.blocks.get_mut(&pid) {
                     parent_block.next = Some(id.clone());
@@ -691,7 +696,7 @@ fn compile_stmt(
             }
             Some(id)
         }
-        Stmt::Repeat(count, body) => {
+        Stmt::Repeat(count, body, comment) => {
             let count_input = compile_expr_input(count, ctx);
             let substack_id = compile_sequence(body, ctx);
             let mut inputs = HashMap::new();
@@ -706,15 +711,22 @@ fn compile_stmt(
                 opcode: "control_repeat".to_string(),
                 next: None,
                 parent: parent_id.clone(),
-                inputs,
+                inputs: inputs.clone(),
                 fields: HashMap::new(),
                 shadow: false,
                 top_level: false,
                 x: None,
                 y: None,
                 mutation: None,
+                comment: None,
             };
             let id = ctx.add_block(block);
+            fix_input_parents(ctx, id.clone(), &inputs);
+
+            if let Some(c) = comment {
+                ctx.add_comment(Some(id.clone()), c.clone(), 0.0, 0.0);
+            }
+
             if let Some(pid) = parent_id {
                 if let Some(Block::Normal(parent_block)) = ctx.blocks.get_mut(&pid) {
                     parent_block.next = Some(id.clone());
@@ -722,7 +734,7 @@ fn compile_stmt(
             }
             Some(id)
         }
-        Stmt::Until(cond, body) => {
+        Stmt::Until(cond, body, comment) => {
             let cond_input = compile_expr_input(cond, ctx);
             let substack_id = compile_sequence(body, ctx);
             let mut inputs = HashMap::new();
@@ -737,15 +749,22 @@ fn compile_stmt(
                 opcode: "control_repeat_until".to_string(),
                 next: None,
                 parent: parent_id.clone(),
-                inputs,
+                inputs: inputs.clone(),
                 fields: HashMap::new(),
                 shadow: false,
                 top_level: false,
                 x: None,
                 y: None,
                 mutation: None,
+                comment: None,
             };
             let id = ctx.add_block(block);
+            fix_input_parents(ctx, id.clone(), &inputs);
+
+            if let Some(c) = comment {
+                ctx.add_comment(Some(id.clone()), c.clone(), 0.0, 0.0);
+            }
+
             if let Some(pid) = parent_id {
                 if let Some(Block::Normal(parent_block)) = ctx.blocks.get_mut(&pid) {
                     parent_block.next = Some(id.clone());
@@ -753,7 +772,47 @@ fn compile_stmt(
             }
             Some(id)
         }
-        Stmt::Assign(name, val) => {
+        Stmt::VarDecl(name, init, comment) => {
+            let val = json!(0); // Placeholder
+            let var_id = ctx.add_variable(name.clone(), val);
+
+            let val_input = compile_expr_input(init, ctx);
+            let mut inputs = HashMap::new();
+            inputs.insert("VALUE".to_string(), val_input);
+            let mut fields = HashMap::new();
+            fields.insert(
+                "VARIABLE".to_string(),
+                Field::Generic(vec![json!(name), json!(var_id)]),
+            );
+
+            let block = NormalBlock {
+                opcode: "data_setvariableto".to_string(),
+                next: None,
+                parent: parent_id.clone(),
+                inputs: inputs.clone(),
+                fields,
+                shadow: false,
+                top_level: false,
+                x: None,
+                y: None,
+                mutation: None,
+                comment: None,
+            };
+            let id = ctx.add_block(block);
+            fix_input_parents(ctx, id.clone(), &inputs);
+
+            if let Some(c) = comment {
+                ctx.add_comment(Some(id.clone()), c.clone(), 0.0, 0.0);
+            }
+
+            if let Some(pid) = parent_id {
+                if let Some(Block::Normal(parent_block)) = ctx.blocks.get_mut(&pid) {
+                    parent_block.next = Some(id.clone());
+                }
+            }
+            Some(id)
+        }
+        Stmt::Assign(name, val, comment) => {
             // Find variable ID
             let var_id = ctx
                 .variables
@@ -783,15 +842,22 @@ fn compile_stmt(
                     opcode: "data_setvariableto".to_string(),
                     next: None,
                     parent: parent_id.clone(),
-                    inputs,
+                    inputs: inputs.clone(),
                     fields,
                     shadow: false,
                     top_level: false,
                     x: None,
                     y: None,
                     mutation: None,
+                    comment: None,
                 };
                 let id = ctx.add_block(block);
+                fix_input_parents(ctx, id.clone(), &inputs);
+
+                if let Some(c) = comment {
+                    ctx.add_comment(Some(id.clone()), c.clone(), 0.0, 0.0);
+                }
+
                 if let Some(pid) = parent_id {
                     if let Some(Block::Normal(parent_block)) = ctx.blocks.get_mut(&pid) {
                         parent_block.next = Some(id.clone());
@@ -801,6 +867,10 @@ fn compile_stmt(
             } else {
                 parent_id // Variable not found, ignore
             }
+        }
+        Stmt::Comment(text) => {
+            ctx.add_comment(None, text.clone(), 0.0, 0.0);
+            parent_id
         }
         _ => parent_id, // Ignore others for MVP
     }
@@ -916,7 +986,7 @@ fn map_call(
             inputs.insert("ITEM".to_string(), compile_expr_input(&args[2], ctx));
             "data_insertatlist"
         }
-        "replace_item_of_list" => {
+        "replace_item_of_list" | "replace_item_list" => {
             if let Some((list_name, list_id)) = find_list_arg(&args[0], ctx) {
                 fields.insert(
                     "LIST".to_string(),
@@ -969,9 +1039,30 @@ fn map_call(
             "motion_turnleft"
         }
         "go_to" => {
-            inputs.insert("X".to_string(), compile_expr_input(&args[0], ctx));
-            inputs.insert("Y".to_string(), compile_expr_input(&args[1], ctx));
-            "motion_gotoxy"
+            if args.len() == 1 {
+                if let Expr::String(val) = &args[0] {
+                    let menu_val = if val == "mouse-pointer" {
+                        "_mouse_"
+                    } else if val == "random-position" {
+                        "_random_"
+                    } else {
+                        val
+                    };
+                    let menu_id =
+                        ctx.add_menu_block("motion_goto_menu", "TO", menu_val.to_string());
+                    inputs.insert(
+                        "TO".to_string(),
+                        Input::Generic(vec![json!(1), json!(menu_id)]),
+                    );
+                } else {
+                    inputs.insert("TO".to_string(), compile_expr_input(&args[0], ctx));
+                }
+                "motion_goto"
+            } else {
+                inputs.insert("X".to_string(), compile_expr_input(&args[0], ctx));
+                inputs.insert("Y".to_string(), compile_expr_input(&args[1], ctx));
+                "motion_gotoxy"
+            }
         }
         "glide" => {
             inputs.insert("SECS".to_string(), compile_expr_input(&args[0], ctx));
@@ -979,9 +1070,47 @@ fn map_call(
             inputs.insert("Y".to_string(), compile_expr_input(&args[2], ctx));
             "motion_glidesecstoxy"
         }
+        "glide_to" => {
+            inputs.insert("SECS".to_string(), compile_expr_input(&args[0], ctx));
+            if let Expr::String(val) = &args[1] {
+                let menu_val = if val == "mouse-pointer" {
+                    "_mouse_"
+                } else if val == "random-position" {
+                    "_random_"
+                } else {
+                    val
+                };
+                let menu_id = ctx.add_menu_block("motion_glideto_menu", "TO", menu_val.to_string());
+                inputs.insert(
+                    "TO".to_string(),
+                    Input::Generic(vec![json!(1), json!(menu_id)]),
+                );
+            } else {
+                inputs.insert("TO".to_string(), compile_expr_input(&args[1], ctx));
+            }
+            "motion_glideto"
+        }
         "point_in_direction" => {
             inputs.insert("DIRECTION".to_string(), compile_expr_input(&args[0], ctx));
             "motion_pointindirection"
+        }
+        "point_towards" => {
+            if let Expr::String(val) = &args[0] {
+                let menu_val = if val == "mouse-pointer" {
+                    "_mouse_"
+                } else {
+                    val
+                };
+                let menu_id =
+                    ctx.add_menu_block("motion_pointtowards_menu", "TOWARDS", menu_val.to_string());
+                inputs.insert(
+                    "TOWARDS".to_string(),
+                    Input::Generic(vec![json!(1), json!(menu_id)]),
+                );
+            } else {
+                inputs.insert("TOWARDS".to_string(), compile_expr_input(&args[0], ctx));
+            }
+            "motion_pointtowards"
         }
         "change_x_by" => {
             inputs.insert("DX".to_string(), compile_expr_input(&args[0], ctx));
@@ -1028,12 +1157,28 @@ fn map_call(
             "looks_thinkforsecs"
         }
         "switch_costume_to" => {
-            inputs.insert("COSTUME".to_string(), compile_expr_input(&args[0], ctx));
+            if let Expr::String(val) = &args[0] {
+                let menu_id = ctx.add_menu_block("looks_costume", "COSTUME", val.to_string());
+                inputs.insert(
+                    "COSTUME".to_string(),
+                    Input::Generic(vec![json!(1), json!(menu_id)]),
+                );
+            } else {
+                inputs.insert("COSTUME".to_string(), compile_expr_input(&args[0], ctx));
+            }
             "looks_switchcostumeto"
         }
         "next_costume" => "looks_nextcostume",
         "switch_backdrop_to" => {
-            inputs.insert("BACKDROP".to_string(), compile_expr_input(&args[0], ctx));
+            if let Expr::String(val) = &args[0] {
+                let menu_id = ctx.add_menu_block("looks_backdrops", "BACKDROP", val.to_string());
+                inputs.insert(
+                    "BACKDROP".to_string(),
+                    Input::Generic(vec![json!(1), json!(menu_id)]),
+                );
+            } else {
+                inputs.insert("BACKDROP".to_string(), compile_expr_input(&args[0], ctx));
+            }
             "looks_switchbackdropto"
         }
         "next_backdrop" => "looks_nextbackdrop",
@@ -1200,10 +1345,29 @@ fn map_call(
             "control_stop"
         }
         "touching" => {
-            inputs.insert(
-                "TOUCHINGOBJECTMENU".to_string(),
-                compile_expr_input(&args[0], ctx),
-            );
+            if let Expr::String(val) = &args[0] {
+                let menu_val = if val == "mouse-pointer" {
+                    "_mouse_"
+                } else if val == "edge" {
+                    "_edge_"
+                } else {
+                    val
+                };
+                let menu_id = ctx.add_menu_block(
+                    "sensing_touchingobjectmenu",
+                    "TOUCHINGOBJECTMENU",
+                    menu_val.to_string(),
+                );
+                inputs.insert(
+                    "TOUCHINGOBJECTMENU".to_string(),
+                    Input::Generic(vec![json!(1), json!(menu_id)]),
+                );
+            } else {
+                inputs.insert(
+                    "TOUCHINGOBJECTMENU".to_string(),
+                    compile_expr_input(&args[0], ctx),
+                );
+            }
             "sensing_touchingobject"
         }
         "touching_color" => {
@@ -1216,10 +1380,27 @@ fn map_call(
             "sensing_coloristouchingcolor"
         }
         "distance_to" => {
-            inputs.insert(
-                "DISTANCETOMENU".to_string(),
-                compile_expr_input(&args[0], ctx),
-            );
+            if let Expr::String(val) = &args[0] {
+                let menu_val = if val == "mouse-pointer" {
+                    "_mouse_"
+                } else {
+                    val
+                };
+                let menu_id = ctx.add_menu_block(
+                    "sensing_distancetomenu",
+                    "DISTANCETOMENU",
+                    menu_val.to_string(),
+                );
+                inputs.insert(
+                    "DISTANCETOMENU".to_string(),
+                    Input::Generic(vec![json!(1), json!(menu_id)]),
+                );
+            } else {
+                inputs.insert(
+                    "DISTANCETOMENU".to_string(),
+                    compile_expr_input(&args[0], ctx),
+                );
+            }
             "sensing_distanceto"
         }
         "ask_and_wait" => {
@@ -1228,7 +1409,16 @@ fn map_call(
         }
         "answer" => "sensing_answer",
         "key_pressed" => {
-            inputs.insert("KEY_OPTION".to_string(), compile_expr_input(&args[0], ctx));
+            if let Expr::String(val) = &args[0] {
+                let menu_id =
+                    ctx.add_menu_block("sensing_keyoptions", "KEY_OPTION", val.to_string());
+                inputs.insert(
+                    "KEY_OPTION".to_string(),
+                    Input::Generic(vec![json!(1), json!(menu_id)]),
+                );
+            } else {
+                inputs.insert("KEY_OPTION".to_string(), compile_expr_input(&args[0], ctx));
+            }
             "sensing_keypressed"
         }
         "mouse_down" => "sensing_mousedown",
@@ -1254,7 +1444,17 @@ fn map_call(
                     Field::Generic(vec![json!(prop), Value::Null]),
                 );
             }
-            inputs.insert("OBJECT".to_string(), compile_expr_input(&args[1], ctx));
+            if let Expr::String(val) = &args[1] {
+                let menu_val = if val == "Stage" { "_stage_" } else { val };
+                let menu_id =
+                    ctx.add_menu_block("sensing_of_object_menu", "OBJECT", menu_val.to_string());
+                inputs.insert(
+                    "OBJECT".to_string(),
+                    Input::Generic(vec![json!(1), json!(menu_id)]),
+                );
+            } else {
+                inputs.insert("OBJECT".to_string(), compile_expr_input(&args[1], ctx));
+            }
             "sensing_of"
         }
         "current_year" => {
@@ -1314,8 +1514,57 @@ fn map_call(
             "operator_random"
         }
         "join" => {
-            inputs.insert("STRING1".to_string(), compile_expr_input(&args[0], ctx));
-            inputs.insert("STRING2".to_string(), compile_expr_input(&args[1], ctx));
+            if args.is_empty() {
+                inputs.insert(
+                    "STRING1".to_string(),
+                    Input::Generic(vec![json!(1), json!([10, ""])]),
+                );
+                inputs.insert(
+                    "STRING2".to_string(),
+                    Input::Generic(vec![json!(1), json!([10, ""])]),
+                );
+            } else if args.len() == 1 {
+                inputs.insert("STRING1".to_string(), compile_expr_input(&args[0], ctx));
+                inputs.insert(
+                    "STRING2".to_string(),
+                    Input::Generic(vec![json!(1), json!([10, ""])]),
+                );
+            } else {
+                // Multi-arg join: join(a, b, c) -> join(a, join(b, c))
+                // We process from right to left.
+                // Last element is the initial "rhs".
+                let mut rhs = compile_expr_input(&args[args.len() - 1], ctx);
+
+                // Iterate from second-to-last down to 1 (skip 0 for now)
+                for i in (1..args.len() - 1).rev() {
+                    let lhs = compile_expr_input(&args[i], ctx);
+
+                    let mut inner_inputs = HashMap::new();
+                    inner_inputs.insert("STRING1".to_string(), lhs);
+                    inner_inputs.insert("STRING2".to_string(), rhs);
+
+                    let block = NormalBlock {
+                        opcode: "operator_join".to_string(),
+                        next: None,
+                        parent: None,
+                        inputs: inner_inputs.clone(),
+                        fields: HashMap::new(),
+                        shadow: false,
+                        top_level: false,
+                        x: None,
+                        y: None,
+                        mutation: None,
+                        comment: None,
+                    };
+                    let id = ctx.add_block(block);
+                    fix_input_parents(ctx, id.clone(), &inner_inputs);
+                    rhs = Input::Generic(vec![json!(2), json!(id)]);
+                }
+
+                // Final outer block
+                inputs.insert("STRING1".to_string(), compile_expr_input(&args[0], ctx));
+                inputs.insert("STRING2".to_string(), rhs);
+            }
             "operator_join"
         }
         "letter_of" => {
@@ -1382,6 +1631,26 @@ fn map_call(
             "sound_seteffectto"
         }
         "clear_sound_effects" => "sound_cleareffects",
+        "set_variable" => {
+            if let Some((var_name, var_id)) = find_variable_arg(&args[0], ctx) {
+                fields.insert(
+                    "VARIABLE".to_string(),
+                    Field::Generic(vec![json!(var_name), json!(var_id)]),
+                );
+            }
+            inputs.insert("VALUE".to_string(), compile_expr_input(&args[1], ctx));
+            "data_setvariableto"
+        }
+        "change_variable_by" => {
+            if let Some((var_name, var_id)) = find_variable_arg(&args[0], ctx) {
+                fields.insert(
+                    "VARIABLE".to_string(),
+                    Field::Generic(vec![json!(var_name), json!(var_id)]),
+                );
+            }
+            inputs.insert("VALUE".to_string(), compile_expr_input(&args[1], ctx));
+            "data_changevariableby"
+        }
         "show_variable" => {
             if let Some((var_name, var_id)) = find_variable_arg(&args[0], ctx) {
                 fields.insert(
@@ -1449,12 +1718,48 @@ fn map_call(
 
                 "procedures_call"
             } else {
-                "control_wait" // Default fallback
+                panic!(
+                    "{}",
+                    format!("Error: Unknown block '{}'. Compilation terminated.", name)
+                        .red()
+                        .bold()
+                );
             }
         }
     };
 
     (opcode.to_string(), inputs, fields, mutation)
+}
+
+fn compile_bool_arg(expr: &Expr, ctx: &mut CompilerContext) -> Input {
+    match expr {
+        Expr::Number(_) | Expr::String(_) => {
+            let val = compile_expr_input(expr, ctx);
+            let mut inputs = HashMap::new();
+            inputs.insert("STRING1".to_string(), val);
+            inputs.insert(
+                "STRING2".to_string(),
+                Input::Generic(vec![json!(1), json!([10, ""])]),
+            );
+            let block = NormalBlock {
+                opcode: "operator_join".to_string(),
+                next: None,
+                parent: None,
+                inputs: inputs.clone(),
+                fields: HashMap::new(),
+                shadow: false,
+                top_level: false,
+                x: None,
+                y: None,
+                mutation: None,
+                comment: None,
+            };
+            let id = ctx.add_block(block);
+            fix_input_parents(ctx, id.clone(), &inputs);
+            Input::Generic(vec![json!(2), json!(id)])
+        }
+        _ => compile_expr_input(expr, ctx),
+    }
 }
 
 fn compile_expr_input(expr: &Expr, ctx: &mut CompilerContext) -> Input {
@@ -1464,7 +1769,36 @@ fn compile_expr_input(expr: &Expr, ctx: &mut CompilerContext) -> Input {
             // Handle special menu inputs if needed, but for now generic string
             Input::Generic(vec![json!(1), json!([10, s])]) // 10 is String primitive
         }
-        Expr::Bool(b) => Input::Generic(vec![json!(1), json!([4, if *b { 1 } else { 0 }])]), // Scratch bools are tricky
+        Expr::Bool(b) => {
+            // Create a boolean reporter block (e.g., 1 = 1 for true, 1 = 0 for false)
+            // This is necessary because boolean inputs (hexagonal) cannot take shadow values
+            let val = if *b { 1 } else { 0 };
+            let mut inputs = HashMap::new();
+            inputs.insert(
+                "OPERAND1".to_string(),
+                Input::Generic(vec![json!(1), json!([10, "1"])]),
+            );
+            inputs.insert(
+                "OPERAND2".to_string(),
+                Input::Generic(vec![json!(1), json!([10, val.to_string()])]),
+            );
+
+            let block = NormalBlock {
+                opcode: "operator_equals".to_string(),
+                next: None,
+                parent: None,
+                inputs,
+                fields: HashMap::new(),
+                shadow: false,
+                top_level: false,
+                x: None,
+                y: None,
+                mutation: None,
+                comment: None,
+            };
+            let id = ctx.add_block(block);
+            Input::Generic(vec![json!(2), json!(id)])
+        }
         Expr::Variable(name) => {
             // Find variable ID
             let var_id = ctx
@@ -1510,9 +1844,10 @@ fn compile_expr_input(expr: &Expr, ctx: &mut CompilerContext) -> Input {
                             x: None,
                             y: None,
                             mutation: None,
+                            comment: None,
                         };
                         let id = ctx.add_block(block);
-                        return Input::Generic(vec![json!(3), json!(id), json!([10, ""])]);
+                        return Input::Generic(vec![json!(2), json!(id)]);
                     }
                 }
 
@@ -1526,22 +1861,20 @@ fn compile_expr_input(expr: &Expr, ctx: &mut CompilerContext) -> Input {
                 opcode,
                 next: None,
                 parent: None,
-                inputs,
+                inputs: inputs.clone(),
                 fields,
                 shadow: false,
                 top_level: false,
                 x: None,
                 y: None,
                 mutation,
+                comment: None,
             };
             let id = ctx.add_block(block);
-            Input::Generic(vec![json!(3), json!(id), json!([10, ""])]) // 3 is Block input
+            fix_input_parents(ctx, id.clone(), &inputs);
+            Input::Generic(vec![json!(2), json!(id)]) // 2 is Block input (no shadow)
         }
         Expr::BinOp(left, op, right) => {
-            let lhs = compile_expr_input(left, ctx);
-            let rhs = compile_expr_input(right, ctx);
-            let mut inputs = HashMap::new();
-
             let (opcode, negate) = match op {
                 Op::Add => ("operator_add", false),
                 Op::Sub => ("operator_subtract", false),
@@ -1557,6 +1890,22 @@ fn compile_expr_input(expr: &Expr, ctx: &mut CompilerContext) -> Input {
                 Op::Ge => ("operator_lt", true), // >= is not <
                 Op::Le => ("operator_gt", true), // <= is not >
             };
+
+            let is_bool_op = opcode == "operator_and" || opcode == "operator_or";
+
+            let lhs = if is_bool_op {
+                compile_bool_arg(left, ctx)
+            } else {
+                compile_expr_input(left, ctx)
+            };
+
+            let rhs = if is_bool_op {
+                compile_bool_arg(right, ctx)
+            } else {
+                compile_expr_input(right, ctx)
+            };
+
+            let mut inputs = HashMap::new();
 
             if opcode == "operator_add"
                 || opcode == "operator_subtract"
@@ -1575,39 +1924,105 @@ fn compile_expr_input(expr: &Expr, ctx: &mut CompilerContext) -> Input {
                 opcode: opcode.to_string(),
                 next: None,
                 parent: None,
-                inputs,
+                inputs: inputs.clone(),
                 fields: HashMap::new(),
                 shadow: false,
                 top_level: false,
                 x: None,
                 y: None,
                 mutation: None,
+                comment: None,
             };
             let mut id = ctx.add_block(block);
+            fix_input_parents(ctx, id.clone(), &inputs);
 
             if negate {
                 let mut inputs = HashMap::new();
                 inputs.insert(
                     "OPERAND".to_string(),
-                    Input::Generic(vec![json!(3), json!(id), json!([10, ""])]),
+                    Input::Generic(vec![json!(2), json!(id)]),
                 );
                 let block = NormalBlock {
                     opcode: "operator_not".to_string(),
                     next: None,
                     parent: None,
-                    inputs,
+                    inputs: inputs.clone(),
                     fields: HashMap::new(),
                     shadow: false,
                     top_level: false,
                     x: None,
                     y: None,
                     mutation: None,
+                    comment: None,
                 };
                 id = ctx.add_block(block);
+                fix_input_parents(ctx, id.clone(), &inputs);
             }
 
-            Input::Generic(vec![json!(3), json!(id), json!([10, ""])])
+            Input::Generic(vec![json!(2), json!(id)])
+        }
+        Expr::UnOp(op, expr) => {
+            let opcode = match op {
+                UnOp::Not => "operator_not",
+                UnOp::Neg => "operator_subtract",
+            };
+
+            let val = if let UnOp::Not = op {
+                compile_bool_arg(expr, ctx)
+            } else {
+                compile_expr_input(expr, ctx)
+            };
+
+            let mut inputs = HashMap::new();
+
+            if let UnOp::Neg = op {
+                // 0 - val
+                inputs.insert(
+                    "NUM1".to_string(),
+                    Input::Generic(vec![json!(1), json!([4, 0])]),
+                );
+                inputs.insert("NUM2".to_string(), val);
+            } else {
+                inputs.insert("OPERAND".to_string(), val);
+            }
+
+            let block = NormalBlock {
+                opcode: opcode.to_string(),
+                next: None,
+                parent: None,
+                inputs: inputs.clone(),
+                fields: HashMap::new(),
+                shadow: false,
+                top_level: false,
+                x: None,
+                y: None,
+                mutation: None,
+                comment: None,
+            };
+            let id = ctx.add_block(block);
+            fix_input_parents(ctx, id.clone(), &inputs);
+            Input::Generic(vec![json!(2), json!(id)])
         }
         Expr::List(_) => Input::Generic(vec![json!(1), json!([10, ""])]), // Lists not supported as inputs
+    }
+}
+
+fn fix_input_parents(
+    ctx: &mut CompilerContext,
+    parent_id: String,
+    inputs: &HashMap<String, Input>,
+) {
+    for input in inputs.values() {
+        let Input::Generic(vals) = input;
+        // Check for [2, "id"] or [3, "id", ...] or [1, "id"] (unlikely for 1)
+        // Shadow type 1 usually has array as second element, so check if it is string
+        if vals.len() >= 2 {
+            if let Some(child_id) = vals[1].as_str() {
+                // It is a block ID
+                if let Some(Block::Normal(child_block)) = ctx.blocks.get_mut(child_id) {
+                    child_block.parent = Some(parent_id.clone());
+                }
+            }
+        }
     }
 }

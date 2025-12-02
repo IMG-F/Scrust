@@ -38,11 +38,14 @@ pub struct Target {
     // Stage specific
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tempo: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", rename = "videoTransparency")]
     pub video_transparency: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", rename = "videoState")]
     pub video_state: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        rename = "textToSpeechLanguage"
+    )]
     pub text_to_speech_language: Option<String>,
 
     // Sprite specific
@@ -58,7 +61,7 @@ pub struct Target {
     pub direction: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub draggable: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", rename = "rotationStyle")]
     pub rotation_style: Option<String>,
 }
 
@@ -85,6 +88,8 @@ pub struct NormalBlock {
     pub y: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mutation: Option<Mutation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub comment: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -133,6 +138,7 @@ pub struct Mutation {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Comment {
+    #[serde(rename = "blockId")]
     pub block_id: Option<String>,
     pub x: f64,
     pub y: f64,
@@ -190,4 +196,25 @@ pub struct Monitor {
     pub slider_max: f64,
     #[serde(rename = "isDiscrete")]
     pub is_discrete: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::to_string;
+
+    #[test]
+    fn test_comment_serialization() {
+        let comment = Comment {
+            block_id: Some("123".to_string()),
+            x: 0.0,
+            y: 0.0,
+            width: 100.0,
+            height: 100.0,
+            minimized: false,
+            text: "hello".to_string(),
+        };
+        let json = to_string(&comment).unwrap();
+        assert!(json.contains("\"blockId\":\"123\""));
+    }
 }

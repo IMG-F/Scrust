@@ -1,5 +1,4 @@
 mod ast;
-mod checker;
 mod compiler;
 mod config;
 mod parser;
@@ -34,12 +33,6 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         debug: bool,
     },
-    /// Check the project for errors
-    Check {
-        /// Path to Scrust.toml
-        #[arg(short, long, default_value = "Scrust.toml")]
-        config: PathBuf,
-    },
     /// Create a new project
     Create {
         /// Project name
@@ -52,43 +45,8 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Build { config, debug } => build(config, debug),
-        Commands::Check { config } => check(config),
         Commands::Create { name } => create(name),
     }
-}
-
-fn validate_program(
-    program: &ast::Program,
-    is_stage: bool,
-    project_root: &std::path::Path,
-) -> Result<()> {
-    for item in &program.items {
-        match item {
-            ast::Item::Variable(decl) => {
-                if is_stage && decl.visibility == ast::Visibility::Private {
-                    return Err(anyhow::anyhow!(
-                        "{}",
-                        format!("Stage variables cannot be private: {}", decl.name).red()
-                    ));
-                }
-            }
-            ast::Item::Costume(decl) | ast::Item::Sound(decl) => {
-                let path = project_root.join(&decl.path);
-                if !path.exists() {
-                    return Err(anyhow::anyhow!(
-                        "{}",
-                        format!(
-                            "Asset not found: {:?} (referenced as '{}')",
-                            path, decl.name
-                        )
-                        .red()
-                    ));
-                }
-            }
-            _ => {}
-        }
-    }
-    Ok(())
 }
 
 fn format_parse_error(e: nom::Err<Error<&str>>, src: &str) -> String {
@@ -108,61 +66,7 @@ fn format_parse_error(e: nom::Err<Error<&str>>, src: &str) -> String {
     }
 }
 
-fn check(config_path: PathBuf) -> Result<()> {
-    println!(
-        "{}",
-        format!("Checking project at {:?}", config_path)
-            .blue()
-            .bold()
-    );
-    let config_str = fs::read_to_string(&config_path).context("Failed to read config file")?;
-    let config: ScrustConfig =
-        toml::from_str(&config_str).context("Failed to parse config file")?;
-    let config_dir = config_path.parent().unwrap();
-
-    let stage_path = if config.stage.path.is_absolute() {
-        config.stage.path.clone()
-    } else {
-        config_dir.join(&config.stage.path)
-    };
-
-    let stage_src = fs::read_to_string(&stage_path)
-        .context(format!("Failed to read stage source {:?}", stage_path))?;
-    let (_, stage_ast) = parser::parse_program(&stage_src)
-        .map_err(|e| anyhow::anyhow!("{}", format_parse_error(e, &stage_src)))?;
-    validate_program(&stage_ast, true, config_dir)?;
-    checker::check_program(&stage_ast)?;
-
-    // Check Sprites
-    if let Some(sprites) = config.sprite {
-        for sprite in sprites {
-            let sprite_path = if sprite.path.is_absolute() {
-                sprite.path.clone()
-            } else {
-                config_dir.join(&sprite.path)
-            };
-
-            let src = fs::read_to_string(&sprite_path)
-                .context(format!("Failed to read sprite source {:?}", sprite_path))?;
-            let (_, ast) = parser::parse_program(&src).map_err(|e| {
-                anyhow::anyhow!(
-                    "In sprite '{}': {}",
-                    sprite.name.as_deref().unwrap_or("unknown"),
-                    format_parse_error(e, &src)
-                )
-            })?;
-            validate_program(&ast, false, config_dir)?;
-            checker::check_program(&ast)?;
-        }
-    }
-
-    println!("{}", "Check passed!".green().bold());
-    Ok(())
-}
-
 fn build(config_path: PathBuf, debug: bool) -> Result<()> {
-    check(config_path.clone())?; // Run check first
-
     println!("{}", "Building project...".blue().bold());
     let config_str = fs::read_to_string(&config_path)?;
     let config: ScrustConfig = toml::from_str(&config_str)?;
@@ -195,7 +99,12 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
     // Pre-load sprites to extract public variables
     let mut sprite_data = Vec::new();
     if let Some(sprites) = &config.sprite {
+        println!(
+            "{}",
+            format!("Found {} sprites in config", sprites.len()).blue()
+        );
         for sprite in sprites {
+            println!("{}", format!("Processing sprite: {:?}", sprite.name).cyan());
             let sprite_path = if sprite.path.is_absolute() {
                 sprite.path.clone()
             } else {

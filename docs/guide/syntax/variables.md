@@ -49,14 +49,16 @@ private var HP = 100;
 
 ### Assigning & Changing
 
-Use standard assignment operators to modify variables.
+Use standard assignment operators to modify variables. You can also use explicit function calls.
 
 ```rust
 // Set variable
 SCORE = 0;
+set_variable("SCORE", 0); // Alternative
 
 // Change variable
 SCORE += 1;
+change_variable_by("SCORE", 1); // Alternative
 ```
 
 <div class="comparison">
@@ -114,14 +116,17 @@ Scrust provides standard functions to manipulate lists.
 
 | Operation | Scrust Syntax | Scratch Block |
 | :--- | :--- | :--- |
-| Add Item | `add_to_list("LIST", value);` | `add (value) to [LIST v]` |
-| Delete Item | `delete_of_list("LIST", index);` | `delete (index) of [LIST v]` |
-| Delete All | `delete_all_of_list("LIST");` | `delete all of [LIST v]` |
-| Insert | `insert_at_list("LIST", index, value);` | `insert (value) at (index) of [LIST v]` |
-| Replace | `replace_item_of_list("LIST", index, value);` | `replace item (index) of [LIST v] with (value)` |
-| Get Item | `item_of_list("LIST", index)` | `item (index) of [LIST v]` |
-| Length | `length_of_list("LIST")` | `length of [LIST v]` |
-| Contains | `list_contains("LIST", value)` | `[LIST v] contains (value)?` |
+| Add Item | `add_to_list("LIST", value);` | <pre class="blocks">add (value) to [LIST v]</pre> |
+| Delete Item | `delete_of_list("LIST", index);` | <pre class="blocks">delete (index) of [LIST v]</pre> |
+| Delete All | `delete_all_of_list("LIST");` | <pre class="blocks">delete all of [LIST v]</pre> |
+| Insert | `insert_at_list("LIST", index, value);` | <pre class="blocks">insert (value) at (index) of [LIST v]</pre> |
+| Replace | `replace_item_of_list("LIST", index, value);` (or `replace_item_list`) | <pre class="blocks">replace item (index) of [LIST v] with (value)</pre> |
+| Get Item | `item_of_list("LIST", index)` | <pre class="blocks">item (index) of [LIST v]</pre> |
+| Item Number | `item_num_of_list("LIST", item)` | <pre class="blocks">item # of (item) in [LIST v]</pre> |
+| Length | `length_of_list("LIST")` | <pre class="blocks">length of [LIST v]</pre> |
+| Contains | `list_contains("LIST", value)` | <pre class="blocks">[LIST v] contains (value)?</pre> |
+| Show List | `show_list("LIST")` | <pre class="blocks">show list [LIST v]</pre> |
+| Hide List | `hide_list("LIST")` | <pre class="blocks">hide list [LIST v]</pre> |
 
 #### Example
 

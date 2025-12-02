@@ -14,8 +14,40 @@ fn comment<'a, E: nom::error::ParseError<&'a str>>(input: &'a str) -> IResult<&'
         (),
         verify(
             tuple((tag("//"), take_while(|c| c != '\n'), char('\n'))),
-            |(_, s, _): &(&str, &str, char)| !s.starts_with('/'),
+            |(_, s, _): &(&str, &str, char)| {
+                if s.starts_with('!') {
+                    return false;
+                }
+                if s.starts_with('/') {
+                    // If it starts with /, it's at least ///.
+                    // We accept //// (s starts with //) as ignored comment.
+                    // We reject /// (s starts with / but not //) as doc comment.
+                    return s.starts_with("//");
+                }
+                true
+            },
         ),
+    )(input)
+}
+
+fn doc_comment<'a, E: nom::error::ParseError<&'a str>>(
+    input: &'a str,
+) -> IResult<&'a str, String, E> {
+    map(
+        verify(
+            tuple((tag("///"), take_while(|c| c != '\n'), char('\n'))),
+            |(_, s, _): &(&str, &str, char)| !s.starts_with('/'), // Reject ////
+        ),
+        |(_, s, _)| s.trim().to_string(),
+    )(input)
+}
+
+fn mod_comment<'a, E: nom::error::ParseError<&'a str>>(
+    input: &'a str,
+) -> IResult<&'a str, String, E> {
+    map(
+        tuple((tag("//!"), take_while(|c: char| c != '\n'), char('\n'))),
+        |(_, s, _): (&str, &str, char)| s.trim().to_string(),
     )(input)
 }
 
@@ -85,7 +117,7 @@ fn list_literal(input: &str) -> IResult<&str, Vec<Expr>> {
 }
 
 fn expr(input: &str) -> IResult<&str, Expr> {
-    expr_add_sub(input)
+    expr_or(input)
 }
 
 fn expr_atom(input: &str) -> IResult<&str, Expr> {
@@ -100,11 +132,23 @@ fn expr_atom(input: &str) -> IResult<&str, Expr> {
     ))(input)
 }
 
+fn expr_unary(input: &str) -> IResult<&str, Expr> {
+    alt((
+        expr_atom,
+        map(pair(ws(tag("!")), ws(expr_unary)), |(_, val)| {
+            Expr::UnOp(UnOp::Not, Box::new(val))
+        }),
+        map(pair(ws(char('-')), ws(expr_unary)), |(_, val)| {
+            Expr::UnOp(UnOp::Neg, Box::new(val))
+        }),
+    ))(input)
+}
+
 fn expr_mul_div(input: &str) -> IResult<&str, Expr> {
-    let (input, init) = ws(expr_atom)(input)?;
+    let (input, init) = ws(expr_unary)(input)?;
     let (input, rest) = many0(tuple((
         ws(alt((char('*'), char('/'), char('%')))),
-        ws(expr_atom),
+        ws(expr_unary),
     )))(input)?;
 
     Ok((
@@ -121,21 +165,75 @@ fn expr_mul_div(input: &str) -> IResult<&str, Expr> {
     ))
 }
 
-fn expr_add_sub(input: &str) -> IResult<&str, Expr> {
-    let (input, init) = ws(expr_mul_div)(input)?;
+fn expr_or(input: &str) -> IResult<&str, Expr> {
+    let (input, init) = ws(expr_and)(input)?;
+    let (input, rest) = many0(tuple((ws(map(tag("||"), |_| Op::Or)), ws(expr_and))))(input)?;
+
+    Ok((
+        input,
+        rest.into_iter().fold(init, |acc, (op, val)| {
+            Expr::BinOp(Box::new(acc), op, Box::new(val))
+        }),
+    ))
+}
+
+fn expr_and(input: &str) -> IResult<&str, Expr> {
+    let (input, init) = ws(expr_eq)(input)?;
+    let (input, rest) = many0(tuple((ws(map(tag("&&"), |_| Op::And)), ws(expr_eq))))(input)?;
+
+    Ok((
+        input,
+        rest.into_iter().fold(init, |acc, (op, val)| {
+            Expr::BinOp(Box::new(acc), op, Box::new(val))
+        }),
+    ))
+}
+
+fn expr_eq(input: &str) -> IResult<&str, Expr> {
+    let (input, init) = ws(expr_cmp)(input)?;
     let (input, rest) = many0(tuple((
         ws(alt((
             map(tag("=="), |_| Op::Eq),
             map(tag("!="), |_| Op::Ne),
+            map(char('='), |_| Op::Eq),
+        ))),
+        ws(expr_cmp),
+    )))(input)?;
+
+    Ok((
+        input,
+        rest.into_iter().fold(init, |acc, (op, val)| {
+            Expr::BinOp(Box::new(acc), op, Box::new(val))
+        }),
+    ))
+}
+
+fn expr_cmp(input: &str) -> IResult<&str, Expr> {
+    let (input, init) = ws(expr_sum)(input)?;
+    let (input, rest) = many0(tuple((
+        ws(alt((
             map(tag(">="), |_| Op::Ge),
             map(tag("<="), |_| Op::Le),
-            map(tag("&&"), |_| Op::And),
-            map(tag("||"), |_| Op::Or),
-            map(char('+'), |_| Op::Add),
-            map(char('-'), |_| Op::Sub),
-            map(char('='), |_| Op::Eq),
             map(char('>'), |_| Op::Gt),
             map(char('<'), |_| Op::Lt),
+        ))),
+        ws(expr_sum),
+    )))(input)?;
+
+    Ok((
+        input,
+        rest.into_iter().fold(init, |acc, (op, val)| {
+            Expr::BinOp(Box::new(acc), op, Box::new(val))
+        }),
+    ))
+}
+
+fn expr_sum(input: &str) -> IResult<&str, Expr> {
+    let (input, init) = ws(expr_mul_div)(input)?;
+    let (input, rest) = many0(tuple((
+        ws(alt((
+            map(char('+'), |_| Op::Add),
+            map(char('-'), |_| Op::Sub),
         ))),
         ws(expr_mul_div),
     )))(input)?;
@@ -160,16 +258,38 @@ fn func_call(input: &str) -> IResult<&str, (String, Vec<Expr>)> {
 }
 
 // Statements
+fn attach_comment(stmt: Stmt, comment: String) -> Stmt {
+    match stmt {
+        Stmt::VarDecl(n, e, _) => Stmt::VarDecl(n, e, Some(comment)),
+        Stmt::Assign(n, e, _) => Stmt::Assign(n, e, Some(comment)),
+        Stmt::Expr(e, _) => Stmt::Expr(e, Some(comment)),
+        Stmt::If(c, t, e, _) => Stmt::If(c, t, e, Some(comment)),
+        Stmt::Repeat(c, b, _) => Stmt::Repeat(c, b, Some(comment)),
+        Stmt::Forever(b, _) => Stmt::Forever(b, Some(comment)),
+        Stmt::Until(c, b, _) => Stmt::Until(c, b, Some(comment)),
+        Stmt::Return(e, _) => Stmt::Return(e, Some(comment)),
+        Stmt::Comment(_) => stmt,
+    }
+}
+
 fn stmt(input: &str) -> IResult<&str, Stmt> {
-    alt((
+    let (input, comment) = opt(ws(doc_comment))(input)?;
+    let (input, mut s) = alt((
+        map(ws(mod_comment), Stmt::Comment),
         stmt_if,
         stmt_repeat,
         stmt_forever,
         stmt_until,
         stmt_var_decl,
         stmt_assign,
+        stmt_return,
         stmt_expr,
-    ))(input)
+    ))(input)?;
+
+    if let Some(c) = comment {
+        s = attach_comment(s, c);
+    }
+    Ok((input, s))
 }
 
 fn block(input: &str) -> IResult<&str, Vec<Stmt>> {
@@ -182,27 +302,27 @@ fn stmt_if(input: &str) -> IResult<&str, Stmt> {
     let (input, then_block) = ws(block)(input)?;
     let (input, else_block) = opt(preceded(ws(tag("else")), ws(block)))(input)?;
 
-    Ok((input, Stmt::If(cond, then_block, else_block)))
+    Ok((input, Stmt::If(cond, then_block, else_block, None)))
 }
 
 fn stmt_repeat(input: &str) -> IResult<&str, Stmt> {
     let (input, _) = ws(tag("repeat"))(input)?;
     let (input, count) = delimited(ws(char('(')), ws(expr), ws(char(')')))(input)?;
     let (input, body) = ws(block)(input)?;
-    Ok((input, Stmt::Repeat(count, body)))
+    Ok((input, Stmt::Repeat(count, body, None)))
 }
 
 fn stmt_forever(input: &str) -> IResult<&str, Stmt> {
     let (input, _) = ws(tag("forever"))(input)?;
     let (input, body) = ws(block)(input)?;
-    Ok((input, Stmt::Forever(body)))
+    Ok((input, Stmt::Forever(body, None)))
 }
 
 fn stmt_until(input: &str) -> IResult<&str, Stmt> {
     let (input, _) = ws(tag("until"))(input)?;
     let (input, cond) = ws(expr)(input)?;
     let (input, body) = ws(block)(input)?;
-    Ok((input, Stmt::Until(cond, body)))
+    Ok((input, Stmt::Until(cond, body, None)))
 }
 
 fn stmt_var_decl(input: &str) -> IResult<&str, Stmt> {
@@ -211,7 +331,7 @@ fn stmt_var_decl(input: &str) -> IResult<&str, Stmt> {
     let (input, _) = ws(char('='))(input)?;
     let (input, val) = ws(expr)(input)?;
     let (input, _) = ws(char(';'))(input)?;
-    Ok((input, Stmt::VarDecl(name, val)))
+    Ok((input, Stmt::VarDecl(name, val, None)))
 }
 
 fn stmt_assign(input: &str) -> IResult<&str, Stmt> {
@@ -221,12 +341,13 @@ fn stmt_assign(input: &str) -> IResult<&str, Stmt> {
     let (input, _) = ws(char(';'))(input)?;
 
     match op {
-        "=" => Ok((input, Stmt::Assign(name, val))),
+        "=" => Ok((input, Stmt::Assign(name, val, None))),
         "+=" => Ok((
             input,
             Stmt::Assign(
                 name.clone(),
                 Expr::BinOp(Box::new(Expr::Variable(name)), Op::Add, Box::new(val)),
+                None,
             ),
         )),
         "-=" => Ok((
@@ -234,16 +355,24 @@ fn stmt_assign(input: &str) -> IResult<&str, Stmt> {
             Stmt::Assign(
                 name.clone(),
                 Expr::BinOp(Box::new(Expr::Variable(name)), Op::Sub, Box::new(val)),
+                None,
             ),
         )),
         _ => unreachable!(),
     }
 }
 
+fn stmt_return(input: &str) -> IResult<&str, Stmt> {
+    let (input, _) = ws(tag("return"))(input)?;
+    let (input, val) = opt(ws(expr))(input)?;
+    let (input, _) = ws(char(';'))(input)?;
+    Ok((input, Stmt::Return(val, None)))
+}
+
 fn stmt_expr(input: &str) -> IResult<&str, Stmt> {
     let (input, e) = ws(expr)(input)?;
     let (input, _) = ws(char(';'))(input)?;
-    Ok((input, Stmt::Expr(e)))
+    Ok((input, Stmt::Expr(e, None)))
 }
 
 fn attribute(input: &str) -> IResult<&str, Attribute> {
@@ -267,14 +396,12 @@ fn attribute(input: &str) -> IResult<&str, Attribute> {
     )(input)
 }
 
-fn item_comment(input: &str) -> IResult<&str, Item> {
-    map(
-        tuple((ws(tag("///")), take_while(|c| c != '\n'), char('\n'))),
-        |(_, content, _)| Item::Comment(content.trim().to_string()),
-    )(input)
+fn item_mod_comment(input: &str) -> IResult<&str, Item> {
+    map(ws(mod_comment), Item::Comment)(input)
 }
 
 fn item_var_decl(input: &str) -> IResult<&str, Item> {
+    let (input, comment) = opt(ws(doc_comment))(input)?;
     let (input, vis) = opt(ws(alt((
         value(Visibility::Public, tag("public")),
         value(Visibility::Private, tag("private")),
@@ -298,11 +425,13 @@ fn item_var_decl(input: &str) -> IResult<&str, Item> {
             ty: decl_type,
             init,
             visibility: vis.unwrap_or(Visibility::Default),
+            comment,
         }),
     ))
 }
 
 fn item_procedure(input: &str) -> IResult<&str, Item> {
+    let (input, comment) = opt(ws(doc_comment))(input)?;
     let (input, attributes) = many0(ws(attribute))(input)?;
     let (input, _) = ws(tag("proc"))(input)?;
     let (input, name) = ws(identifier)(input)?;
@@ -329,11 +458,13 @@ fn item_procedure(input: &str) -> IResult<&str, Item> {
                 .collect(),
             body,
             is_warp,
+            comment,
         }),
     ))
 }
 
 fn item_costume(input: &str) -> IResult<&str, Item> {
+    let (input, _comment) = opt(ws(doc_comment))(input)?;
     let (input, _) = ws(tag("costume"))(input)?;
     let (input, name) = ws(string_literal)(input)?;
     let (input, path) = ws(string_literal)(input)?;
@@ -342,6 +473,7 @@ fn item_costume(input: &str) -> IResult<&str, Item> {
 }
 
 fn item_sound(input: &str) -> IResult<&str, Item> {
+    let (input, _comment) = opt(ws(doc_comment))(input)?;
     let (input, _) = ws(tag("sound"))(input)?;
     let (input, name) = ws(string_literal)(input)?;
     let (input, path) = ws(string_literal)(input)?;
@@ -350,6 +482,7 @@ fn item_sound(input: &str) -> IResult<&str, Item> {
 }
 
 fn item_function(input: &str) -> IResult<&str, Item> {
+    let (input, comment) = opt(ws(doc_comment))(input)?;
     let (input, attributes) = many0(ws(attribute))(input)?;
 
     let (input, _) = ws(tag("fn"))(input)?;
@@ -378,6 +511,7 @@ fn item_function(input: &str) -> IResult<&str, Item> {
                 .collect(),
             body,
             is_warp,
+            comment,
         }),
     ))
 }
@@ -388,7 +522,7 @@ fn item_stmt(input: &str) -> IResult<&str, Item> {
 
 fn item(input: &str) -> IResult<&str, Item> {
     ws(alt((
-        item_comment,
+        item_mod_comment,
         item_var_decl,
         item_costume,
         item_sound,
@@ -400,4 +534,46 @@ fn item(input: &str) -> IResult<&str, Item> {
 
 pub fn parse_program(input: &str) -> IResult<&str, Program> {
     map(many0(item), |items| Program { items })(input)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_func_comment() {
+        let input = "
+        /// My comment
+        #[on_flag_clicked]
+        fn start() {
+        }
+        ";
+        let res = item_function(input);
+        if let Err(e) = &res {
+            println!("Error: {:?}", e);
+        }
+        assert!(res.is_ok());
+        let (_, item) = res.unwrap();
+        if let Item::Function(f) = item {
+            assert_eq!(f.comment, Some("My comment".to_string()));
+            assert_eq!(f.attributes.len(), 1);
+        } else {
+            panic!("Not a function");
+        }
+    }
+
+    #[test]
+    fn test_stmt_comment() {
+        let input = "
+        /// My stmt comment
+        move(10);
+        ";
+        let res = stmt(input);
+        assert!(res.is_ok());
+        let (_, s) = res.unwrap();
+        match s {
+            Stmt::Expr(_, comment) => assert_eq!(comment, Some("My stmt comment".to_string())),
+            _ => panic!("Expected Expr stmt"),
+        }
+    }
 }

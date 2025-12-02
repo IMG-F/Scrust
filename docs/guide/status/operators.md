@@ -13,7 +13,7 @@
 | `a && b` | <pre class="blocks">&lt;(a) and (b)&gt;</pre> | |
 | `a \|\| b` | <pre class="blocks">&lt;(a) or (b)&gt;</pre> | |
 | `!(a)` | <pre class="blocks">&lt;not &lt;a&gt;&gt;</pre> | |
-| `join(str1, str2)` | <pre class="blocks">join (str1) (str2)</pre> | |
+| `join(str1, str2, ...)` | <pre class="blocks">join (str1) (str2)</pre> | Supports unlimited arguments via nesting |
 | `letter_of(str, n)` | <pre class="blocks">letter (n) of (str)</pre> | |
 | `length_of(str)` | <pre class="blocks">length of (str)</pre> | |
 | `contains(str, substr)` | <pre class="blocks">&lt;(str) contains (substr)?&gt;</pre> | |

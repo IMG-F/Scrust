@@ -1,10 +1,10 @@
 [project]
-name = "all_blocks"
+name = "All Blocks Example"
 output = "dist/project.sb3"
 
 [stage]
 path = "src/stage.sr"
 
 [[sprite]]
-name = "Sprite1"
+name = "DemoSprite"
 path = "src/sprite.sr"

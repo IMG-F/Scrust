@@ -1,68 +1,194 @@
 costume "costume1" "assets/sprite.svg";
+sound "pop" "assets/pop.wav";
 
+// Local variables (private to this sprite)
+private var local_counter = 0;
+private list local_inventory = [];
+
+/// This is the main entry point
 #[on_flag_clicked]
 fn start() {
-    // Motion
+    // Initialization
+    show();
+    go_to(0, 0);
+    set_rotation_style("left-right");
+    set_size_to(100);
+    
+    // Reset variables
+    local_counter = 0;
+    delete_all_of_list("local_inventory");
+    
+    say_for("Testing all blocks...", 2.0);
+    
+    // Run test suites
+    test_motion();
+    test_looks();
+    test_sound();
+    test_control_flow();
+    test_operators();
+    test_data();
+    
+    say("All tests completed!");
+}
+
+#[on_key_pressed("space")]
+fn on_space() {
+    jump(50);
+}
+
+/// Custom procedure with an argument
+proc jump(height: number) {
+    change_y_by(height);
+    wait(0.1);
+    change_y_by(0 - height);
+}
+
+/// Test Motion blocks
+proc test_motion() {
+    // Movement
     move_steps(10);
     turn_right(15);
     turn_left(15);
-    go_to(0, 0);
-    glide(1, 10, 10);
+    
+    // Positioning
     point_in_direction(90);
-    set_x_to(100);
-    set_y_to(100);
+    point_towards("mouse-pointer");
+    
     change_x_by(10);
+    set_x_to(0);
     change_y_by(10);
+    set_y_to(0);
+    
+    // Advanced motion
+    glide(0.5, 50, 50);
+    go_to(0, 0);
+    
     if_on_edge_bounce();
-    set_rotation_style("left-right");
+}
 
-    // Looks
-    say("Hello!");
-    say_for("Hello!", 2);
-    think("Hmm...");
-    think_for("Hmm...", 2);
+/// Test Looks blocks
+proc test_looks() {
+    // Speech
+    say("Hello");
+    wait(0.5);
+    think("Hmm");
+    wait(0.5);
+    
+    // Costumes and Backdrops
     switch_costume_to("costume1");
     next_costume();
-    // switch_backdrop_to("backdrop1");
-    // next_backdrop();
+    
+    // Effects and Visibility
     change_size_by(10);
     set_size_to(100);
+    
     change_effect_by("color", 25);
     set_effect_to("color", 0);
     clear_graphic_effects();
-    show();
+    
     hide();
+    wait(0.5);
+    show();
+    
+    // Layers
     go_to_front_layer();
-    go_back_layer();
     go_forward_layers(1);
-    go_backward_layers(1);
-
-    // Sound
-    // start_sound("pop");
-    stop_all_sounds();
-    change_volume_by(-10);
-    set_volume_to(100);
-
-    // Sensing
-    // touching("mouse");
-    // ask_and_wait("Name?");
-    reset_timer();
-    set_drag_mode("draggable");
-
-    // Control
-    wait(1);
-    // create_clone_of("myself");
-    // stop("all");
-
-    // Operators
-    say(join("Hello", " World"));
-    say(letter_of("Apple", 1));
-    say(length_of("Apple"));
-    if contains("Apple", "A") {
-        say("Contains A");
-    }
-    say(mod(10, 3));
-    say(round(3.5));
-    say(abs(-10));
-    say(sin(90));
 }
+
+/// Test Sound blocks
+proc test_sound() {
+    start_sound("pop");
+    play_sound_until_done("pop");
+    stop_all_sounds();
+    
+    change_volume_by(10);
+    set_volume_to(100);
+    clear_sound_effects();
+}
+
+/// Test Control Flow blocks
+proc test_control_flow() {
+    // Loops
+    repeat(5) {
+        change_x_by(5);
+    }
+    
+    // Conditionals
+    if 10 > 5 {
+        say("Math works!");
+    } else {
+        say("Math is broken!");
+    }
+    
+    until touching("mouse-pointer") {
+        point_towards("mouse-pointer");
+    }
+    
+    wait_until(key_pressed("space"));
+}
+
+/// Test Operators blocks
+proc test_operators() {
+    // Math
+    let sum = 1 + 2;
+    let diff = 5 - 3;
+    let prod = 4 * 2;
+    let quot = 10 / 2;
+    
+    // Random
+    let rand = random(1, 10);
+    
+    // Logic
+    if (1 < 2) && (3 > 2) || !(5 == 5) {
+        say("Logic works!");
+    }
+    
+    // String
+    let greeting = join("Hello", " World");
+    let letter = letter_of(1, "Apple");
+    let len = length_of("Banana");
+    
+    if contains("Apple", "A") {
+        say("Contains works!");
+    }
+    
+    // Advanced Math
+    let r = round(3.5);
+    let a = abs(-10);
+}
+
+/// Test Data blocks (Variables and Lists)
+proc test_data() {
+    // Variables
+    set_variable("local_counter", 1);
+    change_variable_by("local_counter", 1);
+    show_variable("local_counter");
+    hide_variable("local_counter");
+    
+    // Lists
+    add_to_list("local_inventory", "Sword");
+    add_to_list("local_inventory", "Shield");
+    
+    delete_of_list("local_inventory", 1);
+    insert_at_list("local_inventory", 1, "Bow");
+    replace_item_list("local_inventory", 1, "Crossbow");
+    
+    let item = item_of_list("local_inventory", 1);
+    let idx = item_num_of_list("local_inventory", "Shield");
+    let len = length_of_list("local_inventory");
+    
+    if list_contains("local_inventory", "Shield") {
+        say("List works!");
+    }
+    
+    show_list("local_inventory");
+    hide_list("local_inventory");
+}
+
+// Top-level independent clusters test
+go_to(10, 10);
+move_steps(20);
+
+//! Split cluster
+
+go_to(0, 0);

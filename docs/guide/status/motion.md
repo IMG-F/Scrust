@@ -5,9 +5,12 @@
 | `move_steps(steps)` | <pre class="blocks">move (steps) steps</pre> | |
 | `turn_right(degrees)` | <pre class="blocks">turn right (degrees) degrees</pre> | |
 | `turn_left(degrees)` | <pre class="blocks">turn left (degrees) degrees</pre> | |
-| `go_to(x, y)` | <pre class="blocks">go to x: (x) y: (y)</pre> | Random/Mouse not supported yet |
+| `go_to(x, y)` | <pre class="blocks">go to x: (x) y: (y)</pre> | |
+| `go_to("mouse-pointer")` | <pre class="blocks">go to [mouse-pointer v]</pre> | Also supports "random-position" |
 | `glide(secs, x, y)` | <pre class="blocks">glide (secs) secs to x: (x) y: (y)</pre> | |
+| `glide_to(secs, "mouse-pointer")` | <pre class="blocks">glide (secs) secs to [mouse-pointer v]</pre> | Also supports "random-position" |
 | `point_in_direction(dir)` | <pre class="blocks">point in direction (dir)</pre> | |
+| `point_towards("mouse-pointer")` | <pre class="blocks">point towards [mouse-pointer v]</pre> | |
 | `change_x_by(dx)` | <pre class="blocks">change x by (dx)</pre> | |
 | `set_x_to(x)` | <pre class="blocks">set x to (x)</pre> | |
 | `change_y_by(dy)` | <pre class="blocks">change y by (dy)</pre> | |
