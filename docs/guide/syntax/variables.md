@@ -1,6 +1,6 @@
 # Variables & Lists
 
-State management in Scrust is handled through typed variables and lists.
+State management in Scrust is handled through variables and lists.
 
 ## Variables
 

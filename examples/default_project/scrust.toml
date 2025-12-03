@@ -1,0 +1,10 @@
+[project]
+name = "default_project"
+output = "dist/project.sb3"
+
+[stage]
+path = "src/stage.sr"
+
+[[sprite]]
+name = "Sprite1"
+path = "src/sprite.sr"

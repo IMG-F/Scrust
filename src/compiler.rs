@@ -2,7 +2,7 @@ use crate::ast::*;
 use crate::sb3::{Block, Comment, Costume, Field, Input, Mutation, NormalBlock, Sound, Target};
 use colored::*;
 use md5;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -92,7 +92,14 @@ impl<'a> CompilerContext<'a> {
         id
     }
 
-    pub fn add_costume(&mut self, name: String, path: String, project_root: &Path) {
+    pub fn add_costume(
+        &mut self,
+        name: String,
+        path: String,
+        x: Option<f64>,
+        y: Option<f64>,
+        project_root: &Path,
+    ) {
         let source_path = project_root.join(&path);
         let content = fs::read(&source_path).unwrap_or_else(|_| {
             panic!(
@@ -115,8 +122,8 @@ impl<'a> CompilerContext<'a> {
             bitmap_resolution: Some(1),
             md5ext: filename.clone(),
             data_format: ext.to_string(),
-            rotation_center_x: 0.0,
-            rotation_center_y: 0.0,
+            rotation_center_x: x.unwrap_or(0.0),
+            rotation_center_y: y.unwrap_or(0.0),
         });
 
         self.asset_instructions.push((source_path, filename));
@@ -211,12 +218,22 @@ pub fn compile_target(
                 }
                 ctx.add_list(decl.name.clone(), initial_values);
             } else {
-                // TODO: evaluate init expr
-                let val = json!(0); // Placeholder
+                let val = match &decl.init {
+                    Expr::Number(n) => json!(n),
+                    Expr::String(s) => json!(s),
+                    Expr::Bool(b) => json!(b),
+                    _ => json!(0),
+                };
                 ctx.add_variable(decl.name.clone(), val);
             }
         } else if let Item::Costume(decl) = item {
-            ctx.add_costume(decl.name.clone(), decl.path.clone(), project_root);
+            ctx.add_costume(
+                decl.name.clone(),
+                decl.path.clone(),
+                decl.x,
+                decl.y,
+                project_root,
+            );
         } else if let Item::Sound(decl) = item {
             ctx.add_sound(decl.name.clone(), decl.path.clone(), project_root);
         } else if let Item::Procedure(proc) = item {
@@ -1030,6 +1047,67 @@ fn map_call(
             inputs.insert("STEPS".to_string(), compile_expr_input(&args[0], ctx));
             "motion_movesteps"
         }
+        // Pen Extension
+        "pen_clear" => "pen_clear",
+        "pen_stamp" => "pen_stamp",
+        "pen_down" => "pen_penDown",
+        "pen_up" => "pen_penUp",
+        "set_pen_color" => {
+            inputs.insert("COLOR".to_string(), compile_expr_input(&args[0], ctx));
+            "pen_setPenColorToColor"
+        }
+        "change_pen_hue_by" => {
+            inputs.insert("HUE".to_string(), compile_expr_input(&args[0], ctx));
+            "pen_changePenHueBy"
+        }
+        "set_pen_hue_to" => {
+            inputs.insert("HUE".to_string(), compile_expr_input(&args[0], ctx));
+            "pen_setPenHueToNumber"
+        }
+        "change_pen_shade_by" => {
+            inputs.insert("SHADE".to_string(), compile_expr_input(&args[0], ctx));
+            "pen_changePenShadeBy"
+        }
+        "set_pen_shade_to" => {
+            inputs.insert("SHADE".to_string(), compile_expr_input(&args[0], ctx));
+            "pen_setPenShadeToNumber"
+        }
+        "change_pen_size_by" => {
+            inputs.insert("SIZE".to_string(), compile_expr_input(&args[0], ctx));
+            "pen_changePenSizeBy"
+        }
+        "set_pen_size_to" => {
+            inputs.insert("SIZE".to_string(), compile_expr_input(&args[0], ctx));
+            "pen_setPenSizeTo"
+        }
+        // Music Extension
+        "play_drum" => {
+            inputs.insert("DRUM".to_string(), compile_expr_input(&args[0], ctx));
+            inputs.insert("BEATS".to_string(), compile_expr_input(&args[1], ctx));
+            "music_playDrumForBeats"
+        }
+        "rest_for" => {
+            inputs.insert("BEATS".to_string(), compile_expr_input(&args[0], ctx));
+            "music_restForBeats"
+        }
+        "play_note" => {
+            inputs.insert("NOTE".to_string(), compile_expr_input(&args[0], ctx));
+            inputs.insert("BEATS".to_string(), compile_expr_input(&args[1], ctx));
+            "music_playNoteForBeats"
+        }
+        "set_instrument" => {
+            inputs.insert("INSTRUMENT".to_string(), compile_expr_input(&args[0], ctx));
+            "music_setInstrument"
+        }
+        "change_tempo_by" => {
+            inputs.insert("TEMPO".to_string(), compile_expr_input(&args[0], ctx));
+            "music_changeTempo"
+        }
+        "set_tempo_to" => {
+            inputs.insert("TEMPO".to_string(), compile_expr_input(&args[0], ctx));
+            "music_setTempo"
+        }
+        "get_tempo" => "music_getTempo",
         "turn_right" => {
             inputs.insert("DEGREES".to_string(), compile_expr_input(&args[0], ctx));
             "motion_turnright"

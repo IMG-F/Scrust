@@ -13,6 +13,7 @@ pub struct ScrustConfig {
 pub struct ProjectConfig {
     pub name: String,
     pub output: PathBuf,
+    pub extensions: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Debug)]

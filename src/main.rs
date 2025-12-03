@@ -182,35 +182,48 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
     let project = sb3::Sb3Project {
         targets,
         monitors: vec![],
-        extensions: vec![],
+        extensions: config.project.extensions.unwrap_or_default(),
         meta: sb3::Meta {
             semver: "3.0.0".to_string(),
             vm: "0.2.0".to_string(),
-            agent: "Scrust 0.1.0".to_string(),
+            agent: "Scrust 0.1.3".to_string(),
         },
     };
 
     // Package .sb3
-    let output_path = if config.project.output.is_absolute() {
-        config.project.output.clone()
+    // Determine output directory
+    let output_dir = if config.project.output.extension().is_some() {
+        // If output has extension, treat it as file path and get parent
+        if config.project.output.is_absolute() {
+            config.project.output.parent().unwrap().to_path_buf()
+        } else {
+            config_path
+                .parent()
+                .unwrap()
+                .join(config.project.output.parent().unwrap())
+        }
     } else {
-        config_path.parent().unwrap().join(&config.project.output)
+        // Treat as directory
+        if config.project.output.is_absolute() {
+            config.project.output.clone()
+        } else {
+            config_path.parent().unwrap().join(&config.project.output)
+        }
     };
-    if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
+
+    fs::create_dir_all(&output_dir)?;
+
+    let safe_name = config.project.name.replace(['/', '\\'], "_");
+    let output_filename = format!("{}.sb3", safe_name);
+    let output_path = output_dir.join(&output_filename);
 
     if debug {
-        let debug_path = output_path.with_file_name("project.json");
-        let debug_file = fs::File::create(debug_path)?;
+        let debug_path = output_dir.join("project.json");
+        let debug_file = fs::File::create(&debug_path)?;
         serde_json::to_writer_pretty(debug_file, &project)?;
         println!(
             "{}",
-            format!(
-                "Debug output written to {:?}",
-                output_path.with_file_name("project.json")
-            )
-            .dimmed()
+            format!("Debug output written to {:?}", debug_path).dimmed()
         );
     }
 
@@ -251,6 +264,9 @@ fn create(name: String) -> Result<()> {
     fs::create_dir_all(root.join("assets"))?;
     // dist directory will be created on build
 
+    // Extract just the folder name for the project name
+    let project_name = root.file_name().and_then(|n| n.to_str()).unwrap_or(&name);
+
     // scrust.toml
     let config_content = format!(
         r#"[project]
@@ -264,7 +280,7 @@ path = "src/stage.sr"
 name = "Sprite1"
 path = "src/sprite.sr"
 "#,
-        name
+        project_name
     );
     fs::write(root.join("scrust.toml"), config_content)?;
 
@@ -287,8 +303,8 @@ fn start() {
     let stage_svg = r##"<svg version="1.1" width="480" height="360" xmlns="http://www.w3.org/2000/svg"><rect width="480" height="360" fill="#ffffff"/></svg>"##;
     fs::write(root.join("assets").join("stage.svg"), stage_svg)?;
 
-    // assets/sprite.svg (simple circle)
-    let sprite_svg = r##"<svg version="1.1" width="48" height="48" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#ff9900"/></svg>"##;
+    // assets/sprite.svg
+    let sprite_svg = include_str!("../assets/logo-64.svg");
     fs::write(root.join("assets").join("sprite.svg"), sprite_svg)?;
 
     println!("{}", "Project created successfully!".green().bold());

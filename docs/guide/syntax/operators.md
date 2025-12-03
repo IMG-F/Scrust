@@ -6,85 +6,111 @@ Scrust provides a wide range of mathematical and logical operators.
 
 Standard arithmetic operators work as expected.
 
-| Scrust | Scratch |
-| :--- | :--- |
-| `1 + 2` | `(1) + (2)` |
-| `1 - 2` | `(1) - (2)` |
-| `1 * 2` | `(1) * (2)` |
-| `1 / 2` | `(1) / (2)` |
-| `random(1, 10)` | `pick random (1) to (10)` |
+<div class="comparison">
+<div>
+<h4>Scrust</h4>
 
 ```rust
-let sum = score + 10;
-let chance = random(1, 100);
+1 + 2
+1 - 2
+1 * 2
+1 / 2
+random(1, 10)
 ```
+</div>
+<div>
+<h4>Scratch</h4>
+<pre class="blocks">
+(1) + (2)
+(1) - (2)
+(1) * (2)
+(1) / (2)
+pick random (1) to (10)
+</pre>
+</div>
+</div>
 
 ## Comparison Operators
 
 Used in `if` statements and loops.
 
-| Scrust | Scratch |
-| :--- | :--- |
-| `a > b` | `(a) > (b)` |
-| `a < b` | `(a) < (b)` |
-| `a == b` | `(a) = (b)` |
+<div class="comparison">
+<div>
+<h4>Scrust</h4>
 
 ```rust
-if score == 100 {
-    // ...
-}
+a > b
+a < b
+a == b
 ```
-
+</div>
+<div>
+<h4>Scratch</h4>
 <pre class="blocks">
-if &lt;(score) = (100)&gt; then
-end
+&lt;(a) &gt; (b)&gt;
+&lt;(a) &lt; (b)&gt;
+&lt;(a) = (b)&gt;
 </pre>
+</div>
+</div>
 
 ## Logic Operators
 
 Combine boolean conditions.
 
-| Scrust | Scratch |
-| :--- | :--- |
-| `a && b` | `&lt;&lt;a&gt; and &lt;b&gt;&gt;` |
-| `a || b` | `&lt;&lt;a&gt; or &lt;b&gt;&gt;` |
-| `!a` | `&lt;not &lt;a&gt;&gt;` |
+<div class="comparison">
+<div>
+<h4>Scrust</h4>
 
 ```rust
-if key_pressed("space") && touching("Ground") {
-    jump();
-}
+a && b
+a || b
+!a
 ```
-
+</div>
+<div>
+<h4>Scratch</h4>
 <pre class="blocks">
-if &lt;&lt;key [space v] pressed?&gt; and &lt;touching [Ground v]?&gt;&gt; then
-    jump
-end
+&lt;&lt;a &gt; and &lt;b &gt;&gt;
+&lt;&lt;a &gt; or &lt;b &gt;&gt;
+&lt;not &lt;a &gt;&gt;
 </pre>
+</div>
+</div>
 
 ## String Operators
 
-| Scrust | Scratch |
-| :--- | :--- |
-| `join("Hello ", "World")` | `join [Hello ] [World]` |
-| `join("A", "B", "C")` | `join [A] (join [B] [C])` |
-| `letter_of("Apple", 1)` | `letter (1) of [Apple]` |
-| `length_of("Apple")` | `length of [Apple]` |
-| `contains("Apple", "a")` | `[Apple] contains [a]?` |
+<div class="comparison">
+<div>
+<h4>Scrust</h4>
 
 ```rust
-let s = join("Hello", " World");
-let nested = join("A", "B", "C", "D");
+join("Hello ", "World")
+join("A", "B", "C")
+letter_of("Apple", 1)
+length_of("Apple")
+contains("Apple", "a")
 ```
-
+</div>
+<div>
+<h4>Scratch</h4>
 <pre class="blocks">
-set [s v] to (join [Hello] [ World])
-set [nested v] to (join [A] (join [B] (join [C] [D])))
+join [Hello ] [World]
+join [A] (join [B] [C])
+letter (1) of [Apple]
+length of [Apple]
+&lt;[Apple] contains [a]?&gt;
 </pre>
+</div>
+</div>
 
 ## Math Functions
 
 Common math functions are available.
+
+<div class="comparison">
+<div>
+<h4>Scrust</h4>
 
 ```rust
 mod(10, 3); // Modulo
@@ -96,7 +122,9 @@ sqrt(9);    // Square root
 sin(90);    // Sine
 cos(0);     // Cosine
 ```
-
+</div>
+<div>
+<h4>Scratch</h4>
 <pre class="blocks">
 (10) mod (3)
 (round (3.5))
@@ -107,3 +135,5 @@ cos(0);     // Cosine
 ([sin v] of (90))
 ([cos v] of (0))
 </pre>
+</div>
+</div>

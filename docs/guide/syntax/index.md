@@ -1,6 +1,6 @@
 # Scrust Syntax Guide
 
-Scrust provides a modern, type-safe syntax that compiles directly to Scratch blocks. This guide covers every aspect of the language, from basic variables to complex control flow.
+Scrust provides a modern syntax that compiles directly to Scratch blocks. This guide covers every aspect of the language, from basic variables to complex control flow.
 
 ## Design Philosophy
 

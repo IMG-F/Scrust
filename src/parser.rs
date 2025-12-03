@@ -1,12 +1,12 @@
 use crate::ast::*;
 use nom::{
-    IResult,
     branch::alt,
     bytes::complete::{tag, take_while},
     character::complete::{alpha1, alphanumeric1, char, digit1, multispace1},
     combinator::{map, map_res, opt, recognize, value, verify},
     multi::{many0, separated_list0},
     sequence::{delimited, pair, preceded, tuple},
+    IResult,
 };
 
 fn comment<'a, E: nom::error::ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, (), E> {
@@ -468,8 +468,15 @@ fn item_costume(input: &str) -> IResult<&str, Item> {
     let (input, _) = ws(tag("costume"))(input)?;
     let (input, name) = ws(string_literal)(input)?;
     let (input, path) = ws(string_literal)(input)?;
+    let (input, coords) = opt(pair(ws(number_literal), ws(number_literal)))(input)?;
     let (input, _) = ws(char(';'))(input)?;
-    Ok((input, Item::Costume(AssetDecl { name, path })))
+
+    let (x, y) = match coords {
+        Some((cx, cy)) => (Some(cx), Some(cy)),
+        None => (None, None),
+    };
+
+    Ok((input, Item::Costume(AssetDecl { name, path, x, y })))
 }
 
 fn item_sound(input: &str) -> IResult<&str, Item> {
@@ -478,7 +485,15 @@ fn item_sound(input: &str) -> IResult<&str, Item> {
     let (input, name) = ws(string_literal)(input)?;
     let (input, path) = ws(string_literal)(input)?;
     let (input, _) = ws(char(';'))(input)?;
-    Ok((input, Item::Sound(AssetDecl { name, path })))
+    Ok((
+        input,
+        Item::Sound(AssetDecl {
+            name,
+            path,
+            x: None,
+            y: None,
+        }),
+    ))
 }
 
 fn item_function(input: &str) -> IResult<&str, Item> {

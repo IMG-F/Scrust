@@ -41,6 +41,9 @@ path = "src/enemy.sr"
 ```
 
 - **[project]**: General settings like project name and output path.
+  - `name`: The name of the project. This determines the output filename (e.g., `my_project.sb3`).
+  - `output`: The output directory or path. If a file extension is provided, the parent directory is used.
+  - `extensions`: A list of extensions to enable (e.g., `["pen", "music"]`).
 - **[stage]**: Defines the source file for the Stage (Backdrop).
 - **[[sprite]]**: Defines a sprite. You can have multiple `[[sprite]]` sections.
 

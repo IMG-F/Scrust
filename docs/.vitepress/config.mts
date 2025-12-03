@@ -50,6 +50,8 @@ export default defineConfig({
           { text: "Operators", link: "/guide/status/operators" },
           { text: "Variables & Lists", link: "/guide/status/variables" },
           { text: "My Blocks", link: "/guide/status/my-blocks" },
+          { text: "Pen", link: "/guide/status/pen" },
+          { text: "Music", link: "/guide/status/music" },
         ],
       },
     ],

@@ -18,3 +18,8 @@ This section provides a comprehensive list of supported Scratch blocks in Scrust
 - [Operators](./operators.md)
 - [Variables & Lists](./variables.md)
 - [My Blocks](./my-blocks.md)
+
+## Extensions
+
+- [Pen](./pen.md)
+- [Music](./music.md)

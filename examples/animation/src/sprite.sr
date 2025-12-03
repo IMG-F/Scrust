@@ -1,0 +1,28 @@
+// defines the costume's name, file path, and rotation center
+costume "costume1" "assets/sprite.svg" 32 32;
+
+private var start_time_1 = 0;
+private var target_size = 100;
+
+private var ease_out_cubic_result = 0;
+#[warp]
+proc calculate_ease_out_cubic_result(process_percent: number, from: number, to: number){
+    ease_out_cubic_result = from + (to - from) * (1 - (1 - process_percent / 100) * (1 - process_percent / 100) * (1 - process_percent / 100));
+}
+
+private var ease_out_back_result = 0;
+#[warp]
+proc calculate_ease_out_back_result(process_percent: number, from: number, to: number) {
+    ease_out_back_result = from + (to - from) * (1 + 2.70158 * (process_percent / 100 - 1) * (process_percent / 100 - 1) * (process_percent / 100 - 1) + 1.70158 * (process_percent / 100 - 1) * (process_percent / 100 - 1));
+}
+
+#[on_flag_clicked]
+fn opener_change_size() {
+    start_time_1 = timer();
+    target_size = 200;
+    until timer() - start_time_1 > 1 {
+        calculate_ease_out_back_result((timer() - start_time_1) * 100, 0, target_size);
+        set_size_to(ease_out_back_result);
+    }
+    set_size_to(target_size);
+}

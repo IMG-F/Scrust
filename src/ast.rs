@@ -43,6 +43,8 @@ pub struct VariableDecl {
 pub struct AssetDecl {
     pub name: String,
     pub path: String,
+    pub x: Option<f64>,
+    pub y: Option<f64>,
 }
 
 #[derive(Debug, Clone)]

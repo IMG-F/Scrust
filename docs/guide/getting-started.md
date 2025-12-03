@@ -63,4 +63,4 @@ cargo run --manifest-path ../Cargo.toml -- build
 
 *(Note: If you have compiled Scrust into a binary and added it to your PATH, you can simply run `scrust build`)*
 
-This will generate `dist/project.sb3`, which you can load into Scratch.
+This will generate `dist/my_first_project.sb3`, which you can load into Scratch.

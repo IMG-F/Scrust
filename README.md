@@ -1,11 +1,11 @@
 ![Scrust](assets/logo-banner.svg)
 
-**Version: 0.1.2 (Alpha)**
+**Version: 0.1.3 (Alpha)**
 
 [![Docs](https://img.shields.io/badge/docs-vitepress-blue)](https://dilemmagx.github.io/Scrust/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Scrust** is a compiled language for Scratch 3.0 projects. It brings modern programming features like functions, typed variables, and structured control flow to Scratch, compiling down to `.sb3` files.
+**Scrust** is a compiled language for Scratch 3.0 projects. It brings modern programming features like functions, variables, and structured control flow to Scratch, compiling down to `.sb3` files.
 
 > [!WARNING]
 > **ALPHA STATUS**
@@ -17,8 +17,9 @@
 
 ## Features
 
-- **Modern Syntax**: Rust-inspired syntax with functions, typed variables, and blocks.
+- **Modern Syntax**: Rust-inspired syntax with functions, variables, and blocks.
 - **Compilation**: Compiles directly to standard `.sb3` Scratch project files.
+- **Extension Support**: Built-in support for Pen and Music extensions.
 - **Project Management**: CLI tools to create, build, and manage projects.
 - **Asset Management**: Easily handle sprites, costumes, and sounds.
 
@@ -61,7 +62,7 @@ cargo run --manifest-path ../Cargo.toml -- build
 > [!TIP]
 > If you installed Scrust globally or added it to your PATH, you can simply run `scrust build`.
 
-The compiled project will be in `dist/project.sb3`. You can load this file into the Scratch editor.
+The compiled project will be in `dist/my_project.sb3` (named after your project in `scrust.toml`). You can load this file into the Scratch editor.
 
 ## Documentation
 
