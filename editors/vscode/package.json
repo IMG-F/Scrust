@@ -1,0 +1,186 @@
+{
+	"name": "scrust-vscode",
+	"displayName": "Scrust Language Support",
+	"description": "Language support for Scrust (Scratch Rust)",
+	"version": "0.1.5",
+	"publisher": "scrust",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/DilemmaGX/Scrust"
+	},
+	"engines": {
+		"vscode": "^1.75.0"
+	},
+	"categories": [
+		"Programming Languages",
+		"Themes"
+	],
+	"main": "./dist/extension.js",
+	"contributes": {
+		"languages": [
+			{
+				"id": "scrust",
+				"aliases": [
+					"Scrust",
+					"scrust"
+				],
+				"extensions": [
+					".sr"
+				],
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "scrust",
+				"scopeName": "source.scrust",
+				"path": "./syntaxes/scrust.tmLanguage.json"
+			}
+		],
+		"configurationDefaults": {
+			"editor.semanticTokenColorCustomizations": {
+					"enabled": true,
+					"rules": {
+						"function": "#FF6680"
+					}
+				},
+				"editor.tokenColorCustomizations": {
+					"textMateRules": [
+					{
+						"scope": "comment.line.scrust",
+						"settings": {
+							"foreground": "#6A9955"
+						}
+					},
+					{
+						"scope": "keyword.control.scrust",
+						"settings": {
+							"foreground": "#FFAB19"
+						}
+					},
+					{
+						"scope": "keyword.other.scrust",
+						"settings": {
+							"foreground": "#569CD6"
+						}
+					},
+					{
+						"scope": "meta.attribute.scrust",
+						"settings": {
+							"foreground": "#FFBF00"
+						}
+					},
+					{
+						"scope": "storage.type.variable.scrust",
+						"settings": {
+							"foreground": "#FF8C1A"
+						}
+					},
+					{
+						"scope": "support.function.motion.scrust",
+						"settings": {
+							"foreground": "#4C97FF"
+						}
+					},
+					{
+						"scope": "support.function.looks.scrust",
+						"settings": {
+							"foreground": "#9966FF"
+						}
+					},
+					{
+						"scope": "support.function.sound.scrust",
+						"settings": {
+							"foreground": "#CF63CF"
+						}
+					},
+					{
+						"scope": "support.function.events.scrust",
+						"settings": {
+							"foreground": "#FFBF00"
+						}
+					},
+					{
+						"scope": "support.function.sensing.scrust",
+						"settings": {
+							"foreground": "#5CB1D6"
+						}
+					},
+					{
+						"scope": "support.function.variable.scrust",
+						"settings": {
+							"foreground": "#FF661A"
+						}
+					},
+					{
+						"scope": "support.function.operators.scrust",
+						"settings": {
+							"foreground": "#59C059"
+						}
+					},
+					{
+						"scope": "support.function.pen.scrust",
+						"settings": {
+							"foreground": "#0FBD8C"
+						}
+					},
+					{
+						"scope": "support.function.music.scrust",
+						"settings": {
+							"foreground": "#0FBD8C"
+						}
+					},
+					{
+						"scope": "entity.name.function.custom.scrust",
+						"settings": {
+							"foreground": "#FF6680"
+						}
+					},
+					{
+						"scope": "entity.name.function",
+						"settings": {
+							"foreground": "#FF6680"
+						}
+					},
+					{
+						"scope": "entity.name.function.member.scrust",
+						"settings": {
+							"foreground": "#DCDCAA"
+						}
+					},
+					{
+						"scope": "entity.name.function.event.scrust",
+						"settings": {
+							"foreground": "#FFBF00",
+							"fontStyle": "bold"
+						}
+					},
+					{
+						"scope": "punctuation.definition.attribute.scrust",
+						"settings": {
+							"foreground": "#808080"
+						}
+					}
+				]
+			}
+		}
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run esbuild-base -- --minify",
+		"esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+		"esbuild": "npm run esbuild-base -- --sourcemap",
+		"esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
+		"compile": "tsc -b",
+		"watch": "tsc -b -w",
+		"package": "vsce package"
+	},
+	"devDependencies": {
+		"@types/node": "^18.0.0",
+		"@types/vscode": "^1.75.0",
+		"@vscode/vsce": "^3.7.1",
+		"esbuild": "^0.27.1",
+		"typescript": "^4.9.0"
+	},
+	"dependencies": {
+	}
+}

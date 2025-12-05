@@ -116,7 +116,7 @@ impl<'a> CompilerContext<'a> {
         let content = fs::read(&source_path).unwrap_or_else(|_| {
             panic!(
                 "{}",
-                format!("Failed to read asset: {:?}", source_path)
+                format!("Failed to read asset: {}", crate::format_path(&source_path))
                     .red()
                     .bold()
             )
@@ -1026,46 +1026,7 @@ fn compile_stmt(
 
             compile_stmt(&final_stmt, parent_id, ctx)
         }
-        Stmt::VarDecl(name, init, comment) => {
-            let val = json!(0); // Placeholder
-            let var_id = ctx.add_variable(name.clone(), val);
 
-            let val_input = compile_expr_input(init, ctx);
-            let mut inputs = HashMap::new();
-            inputs.insert("VALUE".to_string(), val_input);
-            let mut fields = HashMap::new();
-            fields.insert(
-                "VARIABLE".to_string(),
-                Field::Generic(vec![json!(name), json!(var_id)]),
-            );
-
-            let block = NormalBlock {
-                opcode: "data_setvariableto".to_string(),
-                next: None,
-                parent: parent_id.clone(),
-                inputs: inputs.clone(),
-                fields,
-                shadow: false,
-                top_level: false,
-                x: None,
-                y: None,
-                mutation: None,
-                comment: None,
-            };
-            let id = ctx.add_block(block);
-            fix_input_parents(ctx, id.clone(), &inputs);
-
-            if let Some(c) = comment {
-                ctx.add_comment(Some(id.clone()), c.clone(), 0.0, 0.0);
-            }
-
-            if let Some(pid) = parent_id {
-                if let Some(Block::Normal(parent_block)) = ctx.blocks.get_mut(&pid) {
-                    parent_block.next = Some(id.clone());
-                }
-            }
-            Some(id)
-        }
         Stmt::Assign(name, val, comment) => {
             // Find variable ID
             let var_id = ctx

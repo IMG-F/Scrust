@@ -57,10 +57,7 @@ fn ws<'a, F: 'a, O, E: nom::error::ParseError<&'a str>>(
 where
     F: FnMut(&'a str) -> IResult<&'a str, O, E>,
 {
-    preceded(
-        many0(alt((value((), multispace1), comment))),
-        inner,
-    )
+    preceded(many0(alt((value((), multispace1), comment))), inner)
 }
 
 fn identifier(input: &str) -> IResult<&str, String> {
@@ -259,7 +256,6 @@ fn func_call(input: &str) -> IResult<&str, (String, Vec<Expr>)> {
 // Statements
 fn attach_comment(stmt: Stmt, comment: String) -> Stmt {
     match stmt {
-        Stmt::VarDecl(n, e, _) => Stmt::VarDecl(n, e, Some(comment)),
         Stmt::Assign(n, e, _) => Stmt::Assign(n, e, Some(comment)),
         Stmt::Expr(e, _) => Stmt::Expr(e, Some(comment)),
         Stmt::If(c, t, e, _) => Stmt::If(c, t, e, Some(comment)),
@@ -282,7 +278,6 @@ fn stmt(input: &str) -> IResult<&str, Stmt> {
         stmt_repeat,
         stmt_forever,
         stmt_until,
-        stmt_var_decl,
         stmt_assign,
         stmt_return,
         stmt_c_block,
@@ -364,15 +359,6 @@ fn stmt_until(input: &str) -> IResult<&str, Stmt> {
     let (input, cond) = ws(expr)(input)?;
     let (input, body) = ws(block)(input)?;
     Ok((input, Stmt::Until(cond, body, None)))
-}
-
-fn stmt_var_decl(input: &str) -> IResult<&str, Stmt> {
-    let (input, _) = ws(tag("let"))(input)?;
-    let (input, name) = ws(identifier)(input)?;
-    let (input, _) = ws(char('='))(input)?;
-    let (input, val) = ws(expr)(input)?;
-    let (input, _) = ws(char(';'))(input)?;
-    Ok((input, Stmt::VarDecl(name, val, None)))
 }
 
 fn stmt_assign(input: &str) -> IResult<&str, Stmt> {
@@ -606,7 +592,7 @@ pub fn parse_program(input: &str) -> IResult<&str, Program> {
             }),
             map(comment, |_| BreakItem::Comment),
         )))(input)?;
-        
+
         for token in tokens {
             match token {
                 BreakItem::Newlines(n) => newline_count += n,

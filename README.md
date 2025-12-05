@@ -21,6 +21,7 @@
 - **Compilation**: Compiles directly to standard `.sb3` Scratch project files.
 - **Extension Support**: Built-in support for Pen and Music extensions.
 - **Custom Extensions**: Load any TurboWarp extension from a URL or embed local JS files directly.
+- **VS Code Extension**: Syntax highlighting and semantic highlighting for a better development experience.
 - **Project Management**: CLI tools to create, build, and manage projects.
 - **Asset Management**: Easily handle sprites, costumes, and sounds.
 
@@ -64,6 +65,13 @@ cargo run --manifest-path ../Cargo.toml -- build
 > If you installed Scrust globally or added it to your PATH, you can simply run `scrust build`.
 
 The compiled project will be in `dist/my_project.sb3` (named after your project in `scrust.toml`). You can load this file into the Scratch editor.
+
+## Editor Support
+
+We provide a **VS Code Extension** to enhance your Scrust coding experience.
+
+- **Syntax Highlighting**: Scratch-style block colors.
+- **Semantic Highlighting**: Automatically highlights custom procedures in pink.
 
 ## Documentation
 

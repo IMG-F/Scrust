@@ -21,6 +21,7 @@ export default defineConfig({
           { text: "Getting Started", link: "/guide/getting-started" },
           { text: "Project Structure", link: "/guide/project-structure" },
           { text: "Assets & Management", link: "/guide/assets" },
+          { text: "VS Code Extension", link: "/guide/vscode" },
         ],
       },
       {

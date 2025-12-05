@@ -164,9 +164,9 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
         println!(
             "{}",
             format!(
-                "Loaded {} extensions from {:?}",
+                "Loaded {} extensions from {}",
                 extensions.len(),
-                extensions_dir
+                format_path(&extensions_dir)
             )
             .blue()
         );
@@ -273,7 +273,7 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
         serde_json::to_writer_pretty(debug_file, &project)?;
         println!(
             "{}",
-            format!("Debug output written to {:?}", debug_path).dimmed()
+            format!("Debug output written to {}", format_path(&debug_path)).dimmed()
         );
     }
 
@@ -285,7 +285,8 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
     serde_json::to_writer(&mut zip, &project)?;
 
     for (path, filename) in assets_to_pack {
-        let content = fs::read(&path).context(format!("Failed to read asset {:?}", path))?;
+        let content =
+            fs::read(&path).context(format!("Failed to read asset {}", format_path(&path)))?;
         zip.start_file(filename, options)?;
         zip.write_all(&content)?;
     }
@@ -294,7 +295,9 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
 
     println!(
         "{}",
-        format!("Build complete: {:?}", output_path).green().bold()
+        format!("Build complete: {}", format_path(&output_path))
+            .green()
+            .bold()
     );
     Ok(())
 }
@@ -358,7 +361,14 @@ fn start() {
     fs::write(root.join("assets").join("sprite.svg"), sprite_svg)?;
 
     println!("{}", "Project created successfully!".green().bold());
-    println!("cd {}\ncargo run -- build", name);
+    println!(
+        "cd {}\ncargo run -- build",
+        format_path(std::path::Path::new(&name))
+    );
 
     Ok(())
+}
+
+pub fn format_path(path: &std::path::Path) -> String {
+    path.to_string_lossy().replace("\\", "/")
 }

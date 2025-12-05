@@ -35,3 +35,9 @@ pnpm-debug.log*
 # Notes
 scratch.md
 turbowarp.md
+
+# VS Code Extension
+editors/vscode/node_modules
+editors/vscode/out
+editors/vscode/*.vsix
+editors/vscode/.vscode-test

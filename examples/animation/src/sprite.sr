@@ -4,6 +4,17 @@ costume "costume1" "assets/sprite.svg" 32 32;
 
 private var result = 0;
 private var bounce_val = 0;
+private var t = 0;
+private var v = 0;
+private var mode = "";
+private var c1 = 0;
+private var c2 = 0;
+private var c3 = 0;
+private var n1 = 0;
+private var d1 = 0;
+private var x2 = 0;
+private var start_time = 0;
+private var current_time = 0;
 
 
 #[warp]
@@ -11,14 +22,14 @@ proc calculate_animation(type: string, process_percent: number, from: number, to
     if from == to {
         result = from;
     } else {
-        let t = process_percent / 100;
+        t = process_percent / 100;
         if t > 1 { t = 1; }
         if t < 0 { t = 0; }
 
-        let v = t;
+        v = t;
         
         // Determine ease mode
-        let mode = "Linear";
+        mode = "Linear";
         if ease_in && ease_out {
             mode = "InOut";
         } else {
@@ -108,13 +119,13 @@ proc calculate_animation(type: string, process_percent: number, from: number, to
                 }
             }
             "Back" => {
-                let c1 = 1.70158;
-                let c3 = c1 + 1;
+                c1 = 1.70158;
+                c3 = c1 + 1;
                 match mode {
                     "In" => { v = c3 * t * t * t - c1 * t * t; }
                     "Out" => { v = 1 + c3 * (t - 1) * (t - 1) * (t - 1) + c1 * (t - 1) * (t - 1); }
                     "InOut" => {
-                        let c2 = c1 * 1.525;
+                        c2 = c1 * 1.525;
                         if t < 0.5 {
                             v = ((2 * t) * (2 * t) * ((c2 + 1) * 2 * t - c2)) / 2;
                         } else {
@@ -152,21 +163,21 @@ proc calculate_animation(type: string, process_percent: number, from: number, to
 
 #[warp]
 proc calculate_bounce_out(x: number) {
-    let n1 = 7.5625;
-    let d1 = 2.75;
+    n1 = 7.5625;
+    d1 = 2.75;
     
     if x < 1 / d1 {
         bounce_val = n1 * x * x;
     } else {
         if x < 2 / d1 {
-            let x2 = x - 1.5 / d1;
+            x2 = x - 1.5 / d1;
             bounce_val = n1 * x2 * x2 + 0.75;
         } else {
             if x < 2.5 / d1 {
-                let x2 = x - 2.25 / d1;
+                x2 = x - 2.25 / d1;
                 bounce_val = n1 * x2 * x2 + 0.9375;
             } else {
-                let x2 = x - 2.625 / d1;
+                x2 = x - 2.625 / d1;
                 bounce_val = n1 * x2 * x2 + 0.984375;
             }
         }
@@ -179,10 +190,10 @@ fn opener_change_size() {
     show();
     
     reset_timer();
-    let start_time = timer();
+    start_time = timer();
     
     until timer() > (start_time + 1) {
-        let current_time = timer();
+        current_time = timer();
         calculate_animation("Back", (current_time - start_time) * 100, 0, 200, false, true);
         set_size_to(result);
     }

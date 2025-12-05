@@ -74,7 +74,6 @@ pub struct Param {
 #[derive(Debug, Clone)]
 pub enum Stmt {
     #[allow(dead_code)]
-    VarDecl(String, Expr, Option<String>),
     Assign(String, Expr, Option<String>),
     Expr(Expr, Option<String>),
     If(Expr, Vec<Stmt>, Option<Vec<Stmt>>, Option<String>),

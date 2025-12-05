@@ -1,0 +1,144 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Scrust",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#attributes"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#numbers"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#functions"
+		}
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.line.double-slash.scrust",
+					"match": "//.*$"
+				},
+				{
+					"name": "comment.block.scrust",
+					"begin": "/\\*",
+					"end": "\\*/"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.scrust",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.scrust",
+					"match": "\\\\."
+				}
+			]
+		},
+		"numbers": {
+			"name": "constant.numeric.scrust",
+			"match": "\\b\\d+(\\.\\d+)?\\b"
+		},
+		"attributes": {
+			"patterns": [
+				{
+					"match": "(#\\[)\\s*(on_flag_clicked|on_key_pressed|on_broadcast_received|on_sprite_clicked|on_backdrop_switches|on_greater_than|on_clone_start)(?:\\(([^\\)]*)\\))?\\s*(\\])",
+					"captures": {
+						"1": { "name": "punctuation.definition.attribute.scrust" },
+						"2": { "name": "entity.name.function.event.scrust" },
+						"3": { "name": "string.unquoted.attribute.scrust" },
+						"4": { "name": "punctuation.definition.attribute.scrust" }
+					}
+				},
+				{
+					"name": "meta.attribute.scrust",
+					"match": "#\\[[^\\]]+\\]",
+					"captures": {
+						"0": { "name": "entity.name.type.attribute.scrust" }
+					}
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.scrust",
+					"match": "\\b(if|else|repeat|forever|until|match|return|wait|wait_until|repeat_until|stop|create_clone|delete_this_clone)\\b"
+				},
+				{
+					"name": "keyword.other.scrust",
+					"match": "\\b(fn|proc|private|public|costume|sound)\\b"
+				},
+				{
+					"name": "storage.type.variable.scrust",
+					"match": "\\b(var|list)\\b"
+				},
+				{
+					"match": "\\b(proc)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+					"captures": {
+						"1": { "name": "keyword.other.scrust" },
+						"2": { "name": "entity.name.function.custom.scrust" }
+					}
+				},
+				{
+					"match": "\\b(fn)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+					"captures": {
+						"1": { "name": "keyword.other.scrust" }
+					}
+				}
+			]
+		},
+		"functions": {
+			"patterns": [
+				{
+					"name": "support.function.motion.scrust",
+					"match": "\\b(move_steps|turn_right|turn_left|go_to|glide|glide_to|point_in_direction|point_towards|change_x_by|set_x_to|change_y_by|set_y_to|if_on_edge_bounce|set_rotation_style)\\b"
+				},
+				{
+					"name": "support.function.looks.scrust",
+					"match": "\\b(say|say_for|think|think_for|switch_costume_to|next_costume|switch_backdrop_to|next_backdrop|change_size_by|set_size_to|change_effect_by|set_effect_to|clear_graphic_effects|show|hide|go_to_front_layer|go_back_layer|go_forward_layers|go_backward_layers|costume_number|costume_name|backdrop_number|backdrop_name|size)\\b"
+				},
+				{
+					"name": "support.function.sound.scrust",
+					"match": "\\b(play_sound|start_sound|stop_all_sounds|change_volume|set_volume|volume)\\b"
+				},
+				{
+					"name": "support.function.events.scrust",
+					"match": "\\b(broadcast|broadcast_and_wait)\\b"
+				},
+				{
+					"name": "support.function.sensing.scrust",
+					"match": "\\b(ask|reset_timer|touching|touching_color|color_is_touching_color|distance_to|answer|key_pressed|mouse_down|mouse_x|mouse_y|loudness|timer|current_year|current_month|current_date|current_day_of_week|current_hour|current_minute|current_second|days_since_2000|username)\\b"
+				},
+				{
+					"name": "support.function.variable.scrust",
+					"match": "\\b(add_to_list|delete_of_list|delete_all_of_list|insert_at_list|replace_item_of_list|item_of_list|length_of_list|list_contains|show_list|hide_list|show_variable|hide_variable)\\b"
+				},
+				{
+					"name": "support.function.operators.scrust",
+					"match": "\\b(random|join|letter_of|length_of|contains|mod|round|abs|floor|ceiling|sqrt|sin|cos|tan|asin|acos|atan|ln|log|e_exp|10_exp)\\b"
+				},
+				{
+					"name": "support.function.pen.scrust",
+					"match": "\\b(erase_all|stamp|pen_down|pen_up|set_pen_color|change_pen_color|set_pen_size|change_pen_size|pen_clear|set_pen_size_to|change_pen_size_by)\\b"
+				},
+				{
+					"name": "support.function.music.scrust",
+					"match": "\\b(play_drum|rest_for|play_note|set_instrument|change_tempo_by|set_tempo_to|get_tempo)\\b"
+				}
+			]
+		}
+	},
+	"scopeName": "source.scrust"
+}

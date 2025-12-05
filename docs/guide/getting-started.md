@@ -11,6 +11,12 @@ Scrust is a programming language that compiles to Scratch 3.0 projects (.sb3). I
    cd Scrust
    ```
 
+### Editor Support (Recommended)
+
+For the best experience, we recommend using our **VS Code Extension**. It provides syntax highlighting and code completion.
+
+See the [VS Code Extension Guide](./vscode.md) for installation instructions.
+
 ## Creating a Project
 
 The easiest way to start is using the `create` command:
