@@ -4,6 +4,14 @@ pub struct Program {
 }
 
 #[derive(Debug, Clone)]
+pub struct Package {
+    pub name: String,
+    pub extensions: Vec<String>,
+    pub dependencies: Vec<String>,
+    pub items: Vec<Item>,
+}
+
+#[derive(Debug, Clone)]
 pub enum Item {
     Variable(VariableDecl),
     Costume(AssetDecl),
@@ -13,6 +21,8 @@ pub enum Item {
     Comment(String),         // Top level comment
     BatchBreak,              // Separator for block batches (blank lines)
     Stmt(Stmt),
+    Package(Package),
+    Use(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]

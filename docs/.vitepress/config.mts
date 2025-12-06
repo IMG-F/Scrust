@@ -33,6 +33,7 @@ export default defineConfig({
           { text: "Events", link: "/guide/syntax/events" },
           { text: "Control Flow", link: "/guide/syntax/control-flow" },
           { text: "Functions", link: "/guide/syntax/procedures" },
+          { text: "Packages", link: "/guide/syntax/packages" },
           { text: "Operators", link: "/guide/syntax/operators" },
           { text: "Standard Blocks", link: "/guide/syntax/blocks" },
         ],

@@ -64,7 +64,7 @@ fn identifier(input: &str) -> IResult<&str, String> {
     map(
         recognize(pair(
             alt((alpha1, tag("_"))),
-            many0(alt((alphanumeric1, tag("_")))),
+            many0(alt((alphanumeric1, tag("_"), tag("::")))),
         )),
         |s: &str| s.to_string(),
     )(input)
@@ -423,6 +423,73 @@ fn attribute(input: &str) -> IResult<&str, Attribute> {
     )(input)
 }
 
+// Package definition
+fn parse_package(input: &str) -> IResult<&str, Package> {
+    let (input, _) = ws(tag("package"))(input)?;
+    let (input, name) = ws(identifier)(input)?;
+    let (input, _) = ws(char('{'))(input)?;
+
+    let (input, fields) = separated_list0(
+        ws(char(',')),
+        ws(alt((
+            map(parse_package_extensions, |e| ("extensions", e)),
+            map(parse_package_dependencies, |d| ("dependencies", d)),
+        ))),
+    )(input)?;
+
+    let (input, _) = opt(ws(char(',')))(input)?;
+    let (input, _) = ws(char('}'))(input)?;
+
+    let mut extensions = Vec::new();
+    let mut dependencies = Vec::new();
+
+    for (key, val) in fields {
+        match key {
+            "extensions" => extensions = val,
+            "dependencies" => dependencies = val,
+            _ => {}
+        }
+    }
+
+    Ok((
+        input,
+        Package {
+            name,
+            extensions,
+            dependencies,
+            items: Vec::new(),
+        },
+    ))
+}
+
+fn parse_package_extensions(input: &str) -> IResult<&str, Vec<String>> {
+    let (input, _) = ws(tag("extensions"))(input)?;
+    let (input, _) = ws(char('='))(input)?;
+    let (input, _) = ws(char('['))(input)?;
+    let (input, exts) = separated_list0(ws(char(',')), ws(string_literal))(input)?;
+    let (input, _) = opt(ws(char(',')))(input)?;
+    let (input, _) = ws(char(']'))(input)?;
+    Ok((input, exts))
+}
+
+fn parse_package_dependencies(input: &str) -> IResult<&str, Vec<String>> {
+    let (input, _) = ws(tag("dependencies"))(input)?;
+    let (input, _) = ws(char('='))(input)?;
+    let (input, _) = ws(char('['))(input)?;
+    let (input, deps) = separated_list0(ws(char(',')), ws(string_literal))(input)?;
+    let (input, _) = opt(ws(char(',')))(input)?;
+    let (input, _) = ws(char(']'))(input)?;
+    Ok((input, deps))
+}
+
+fn parse_use(input: &str) -> IResult<&str, String> {
+    let (input, _) = ws(tag("use"))(input)?;
+    let (input, name) = ws(identifier)(input)?;
+    let (input, _) = ws(char(';'))(input)?;
+    Ok((input, name))
+}
+
+// Top level items
 fn item_mod_comment(input: &str) -> IResult<&str, Item> {
     map(ws(mod_comment), Item::Comment)(input)
 }
@@ -585,6 +652,8 @@ fn item_stmt(input: &str) -> IResult<&str, Item> {
 fn item(input: &str) -> IResult<&str, Item> {
     ws(alt((
         item_mod_comment,
+        map(parse_package, Item::Package),
+        map(parse_use, Item::Use),
         item_var_decl,
         item_costume,
         item_sound,
@@ -645,6 +714,26 @@ pub fn parse_program(input: &str) -> IResult<&str, Program> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_package() {
+        let input = r#"
+        package math {
+            extensions = [
+                "return"
+            ]
+        }
+        "#;
+        let (_, prog) = parse_program(input).unwrap();
+        assert_eq!(prog.items.len(), 1);
+        if let Item::Package(pkg) = &prog.items[0] {
+            assert_eq!(pkg.name, "math");
+            assert_eq!(pkg.extensions.len(), 1);
+            assert_eq!(pkg.extensions[0], "return");
+        } else {
+            panic!("Expected Package item");
+        }
+    }
 
     #[test]
     fn test_func_comment() {

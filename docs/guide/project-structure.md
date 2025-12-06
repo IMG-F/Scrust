@@ -44,6 +44,7 @@ path = "src/enemy.sr"
   - `name`: The name of the project. This determines the output filename (e.g., `my_project.sb3`).
   - `output`: The output directory or path. If a file extension is provided, the parent directory is used.
   - `extensions`: Extensions to enable. This can be a list of IDs (e.g., `["pen", "music"]`) or a detailed list of tables for custom extensions. See [Extensions](./extensions.md) for details.
+  - `packages`: A list of paths to package files (`.sr`) to include in the project. See [Packages](./syntax/packages.md) for details.
 - **[stage]**: Defines the source file for the Stage (Backdrop).
 - **[[sprite]]**: Defines a sprite. You can have multiple `[[sprite]]` sections.
 

@@ -1,0 +1,13 @@
+[project]
+name = "animation_lib"
+output = "dist/project.sb3"
+packages = [
+    "packages/animation.sr"
+]
+
+[stage]
+path = "src/stage.sr"
+
+[[sprite]]
+name = "Sprite1"
+path = "src/sprite.sr"

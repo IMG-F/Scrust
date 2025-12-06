@@ -8,7 +8,7 @@ mod sb3;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use colored::*;
-use config::ScrustConfig;
+use config::{ExtensionConfig, ScrustConfig};
 use nom::error::Error;
 use std::collections::HashMap;
 use std::fs;
@@ -73,6 +73,73 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
     let config_str = fs::read_to_string(&config_path)?;
     let config: ScrustConfig = toml::from_str(&config_str)?;
     let config_dir = config_path.parent().unwrap();
+
+    let mut packages_map = HashMap::new();
+    let mut package_extensions = Vec::new();
+
+    if let Some(package_paths) = &config.project.packages {
+        for package_path_str in package_paths {
+            if debug {
+                println!("included packages {}", package_path_str);
+            }
+
+            let package_path = if PathBuf::from(package_path_str).is_absolute() {
+                PathBuf::from(package_path_str)
+            } else {
+                config_dir.join(package_path_str)
+            };
+
+            let src = fs::read_to_string(&package_path)
+                .with_context(|| format!("Failed to read package file: {}", package_path_str))?;
+
+            let (rest, program) = parser::parse_program(&src).map_err(|e| {
+                anyhow::anyhow!(
+                    "In package '{}': {}",
+                    package_path_str,
+                    format_parse_error(e, &src)
+                )
+            })?;
+
+            if !rest.trim().is_empty() {
+                println!(
+                    "{}",
+                    format!(
+                        "Warning: Package {} parsing stopped early. Remaining: {:.50}...",
+                        package_path_str, rest
+                    )
+                    .yellow()
+                );
+            }
+
+            let mut package_def = None;
+            let mut items = Vec::new();
+
+            for item in program.items {
+                if let ast::Item::Package(pkg) = item {
+                    if package_def.is_some() {
+                        return Err(anyhow::anyhow!(
+                            "Package file '{}' contains multiple package declarations",
+                            package_path_str
+                        ));
+                    }
+                    package_def = Some(pkg);
+                } else {
+                    items.push(item);
+                }
+            }
+
+            if let Some(mut pkg) = package_def {
+                package_extensions.extend(pkg.extensions.clone());
+                pkg.items = items;
+                packages_map.insert(pkg.name.clone(), pkg);
+            } else {
+                return Err(anyhow::anyhow!(
+                    "Package file '{}' must contain a package declaration",
+                    package_path_str
+                ));
+            }
+        }
+    }
 
     let mut targets = Vec::new();
     let mut assets_to_pack = Vec::new();
@@ -158,8 +225,22 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
     // We assume the extensions folder is in the current working directory (repo root)
     // or relative to where the compiler is expected to find them.
     let extensions_dir = PathBuf::from("extensions");
-    let extensions =
-        extension::load_extensions(&extensions_dir, &config.project.extensions, config_dir)?;
+    let mut all_extensions = config.project.extensions.clone().unwrap_or_default();
+
+    for ext_str in package_extensions {
+        let exists = all_extensions.iter().any(|e| match e {
+            ExtensionConfig::Simple(s) => s == &ext_str,
+            ExtensionConfig::Detailed(d) => d.id.as_deref() == Some(&ext_str),
+        });
+
+        if !exists {
+            all_extensions.push(ExtensionConfig::Simple(ext_str));
+        }
+    }
+
+    let extensions_opt = Some(all_extensions);
+
+    let extensions = extension::load_extensions(&extensions_dir, &extensions_opt, config_dir)?;
     if !extensions.is_empty() {
         println!(
             "{}",
@@ -172,8 +253,16 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
         );
     }
 
-    let (stage_target, stage_assets) =
-        compiler::compile_target(&stage_ast, true, None, None, config_dir, &extensions, debug);
+    let (stage_target, stage_assets) = compiler::compile_target(
+        &stage_ast,
+        true,
+        None,
+        None,
+        config_dir,
+        &extensions,
+        &packages_map,
+        debug,
+    )?;
 
     for (path, filename) in stage_assets {
         assets_to_pack.push((path, filename));
@@ -191,8 +280,9 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
             Some(&global_lists),
             config_dir,
             &extensions,
+            &packages_map,
             debug,
-        );
+        )?;
         target.name = sprite.name.clone().unwrap_or("Sprite".to_string());
 
         for (path, filename) in sprite_assets {

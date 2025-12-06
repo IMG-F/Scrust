@@ -14,6 +14,7 @@ pub struct ProjectConfig {
     pub name: String,
     pub output: PathBuf,
     pub extensions: Option<Vec<ExtensionConfig>>,
+    pub packages: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

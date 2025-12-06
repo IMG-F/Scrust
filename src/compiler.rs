@@ -35,6 +35,7 @@ pub struct CompilerContext<'a> {
     pub local_variables: HashMap<String, String>,
     pub extensions: &'a [Extension],
     pub debug: bool,
+    pub used_packages: std::collections::HashSet<String>, // Track used packages to include their extensions
 }
 
 impl<'a> CompilerContext<'a> {
@@ -60,6 +61,7 @@ impl<'a> CompilerContext<'a> {
             local_variables: HashMap::new(),
             extensions,
             debug,
+            used_packages: std::collections::HashSet::new(),
         }
     }
 
@@ -198,6 +200,58 @@ impl<'a> CompilerContext<'a> {
     }
 }
 
+fn contains_return(stmts: &[Stmt]) -> bool {
+    for stmt in stmts {
+        match stmt {
+            Stmt::Return(_, _) => return true,
+            Stmt::If(_, if_body, else_body, _) => {
+                if contains_return(if_body) {
+                    return true;
+                }
+                if let Some(else_body) = else_body {
+                    if contains_return(else_body) {
+                        return true;
+                    }
+                }
+            }
+            Stmt::Repeat(_, body, _) => {
+                if contains_return(body) {
+                    return true;
+                }
+            }
+            Stmt::Forever(body, _) => {
+                if contains_return(body) {
+                    return true;
+                }
+            }
+            Stmt::Until(_, body, _) => {
+                if contains_return(body) {
+                    return true;
+                }
+            }
+            Stmt::Match(_, cases, default_case, _) => {
+                for (_, case_body) in cases {
+                    if contains_return(case_body) {
+                        return true;
+                    }
+                }
+                if let Some(default_body) = default_case {
+                    if contains_return(default_body) {
+                        return true;
+                    }
+                }
+            }
+            Stmt::CBlock(_, _, body, _) => {
+                if contains_return(body) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 pub fn compile_target(
     program: &Program,
     is_stage: bool,
@@ -205,54 +259,279 @@ pub fn compile_target(
     global_lists: Option<&HashMap<String, (String, Vec<Value>)>>,
     project_root: &Path,
     extensions: &[Extension],
+    packages: &HashMap<String, Package>,
     debug: bool,
-) -> (Target, Vec<(PathBuf, String)>) {
+) -> anyhow::Result<(Target, Vec<(PathBuf, String)>)> {
     let mut ctx = CompilerContext::new(global_variables, global_lists, extensions, debug);
 
-    // Process Globals/Variables first
-    for item in &program.items {
-        if let Item::Variable(decl) = item {
-            if !is_stage && decl.visibility == Visibility::Public {
-                continue;
-            }
+    // Pre-scan for imports/use statements and implement tree shaking
+    // to compile only used package procedures.
 
-            if let Some(comment) = &decl.comment {
-                ctx.add_comment(None, comment.clone(), 0.0, 0.0);
-            }
+    let mut used_procedures = std::collections::HashSet::new();
 
-            if let Type::List = decl.ty {
-                let mut initial_values = Vec::new();
-                if let Expr::List(exprs) = &decl.init {
-                    for e in exprs {
-                        match e {
-                            Expr::Number(n) => initial_values.push(json!(n)),
-                            Expr::String(s) => initial_values.push(json!(s)),
-                            Expr::Bool(b) => initial_values.push(json!(b)),
-                            _ => (),
-                        }
+    fn scan_stmts(stmts: &[Stmt], used: &mut std::collections::HashSet<String>) {
+        for stmt in stmts {
+            match stmt {
+                Stmt::Expr(expr, _) => scan_expr(expr, used),
+                Stmt::If(cond, then_b, else_b, _) => {
+                    scan_expr(cond, used);
+                    scan_stmts(then_b, used);
+                    if let Some(else_b) = else_b {
+                        scan_stmts(else_b, used);
                     }
                 }
-                ctx.add_list(decl.name.clone(), initial_values);
-            } else {
-                let val = match &decl.init {
-                    Expr::Number(n) => json!(n),
-                    Expr::String(s) => json!(s),
-                    Expr::Bool(b) => json!(b),
-                    _ => json!(0),
-                };
-                ctx.add_variable(decl.name.clone(), val);
+                Stmt::Repeat(count, body, _) => {
+                    scan_expr(count, used);
+                    scan_stmts(body, used);
+                }
+                Stmt::Forever(body, _) => scan_stmts(body, used),
+                Stmt::Until(cond, body, _) => {
+                    scan_expr(cond, used);
+                    scan_stmts(body, used);
+                }
+                Stmt::Match(expr, cases, default, _) => {
+                    scan_expr(expr, used);
+                    for (case_expr, case_body) in cases {
+                        scan_expr(case_expr, used);
+                        scan_stmts(case_body, used);
+                    }
+                    if let Some(def) = default {
+                        scan_stmts(def, used);
+                    }
+                }
+                Stmt::Return(Some(expr), _) => scan_expr(expr, used),
+                Stmt::CBlock(_, args, body, _) => {
+                    for arg in args {
+                        scan_expr(arg, used);
+                    }
+                    scan_stmts(body, used);
+                }
+                Stmt::Assign(_, expr, _) => scan_expr(expr, used),
+                _ => {}
             }
-        } else if let Item::Costume(decl) = item {
-            ctx.add_costume(
-                decl.name.clone(),
-                decl.path.clone(),
-                decl.x,
-                decl.y,
-                project_root,
-            );
-        } else if let Item::Sound(decl) = item {
-            ctx.add_sound(decl.name.clone(), decl.path.clone(), project_root);
-        } else if let Item::Procedure(proc) = item {
+        }
+    }
+
+    fn scan_expr(expr: &Expr, used: &mut std::collections::HashSet<String>) {
+        match expr {
+            Expr::Call(name, args) | Expr::ProcCall(name, args) => {
+                used.insert(name.clone());
+                for arg in args {
+                    scan_expr(arg, used);
+                }
+            }
+            Expr::BinOp(lhs, _, rhs) => {
+                scan_expr(lhs, used);
+                scan_expr(rhs, used);
+            }
+            Expr::UnOp(_, val) => scan_expr(val, used),
+            Expr::List(items) => {
+                for item in items {
+                    scan_expr(item, used);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn namespace_stmts(
+        stmts: &mut [Stmt],
+        pkg_name: &str,
+        pkg_procs: &std::collections::HashSet<String>,
+    ) {
+        for stmt in stmts {
+            match stmt {
+                Stmt::Expr(expr, _) => namespace_expr(expr, pkg_name, pkg_procs),
+                Stmt::If(cond, then_b, else_b, _) => {
+                    namespace_expr(cond, pkg_name, pkg_procs);
+                    namespace_stmts(then_b, pkg_name, pkg_procs);
+                    if let Some(else_b) = else_b {
+                        namespace_stmts(else_b, pkg_name, pkg_procs);
+                    }
+                }
+                Stmt::Repeat(count, body, _) => {
+                    namespace_expr(count, pkg_name, pkg_procs);
+                    namespace_stmts(body, pkg_name, pkg_procs);
+                }
+                Stmt::Forever(body, _) => namespace_stmts(body, pkg_name, pkg_procs),
+                Stmt::Until(cond, body, _) => {
+                    namespace_expr(cond, pkg_name, pkg_procs);
+                    namespace_stmts(body, pkg_name, pkg_procs);
+                }
+                Stmt::Match(expr, cases, default, _) => {
+                    namespace_expr(expr, pkg_name, pkg_procs);
+                    for (case_expr, case_body) in cases {
+                        namespace_expr(case_expr, pkg_name, pkg_procs);
+                        namespace_stmts(case_body, pkg_name, pkg_procs);
+                    }
+                    if let Some(def) = default {
+                        namespace_stmts(def, pkg_name, pkg_procs);
+                    }
+                }
+                Stmt::Return(Some(expr), _) => namespace_expr(expr, pkg_name, pkg_procs),
+                Stmt::CBlock(_, args, body, _) => {
+                    for arg in args {
+                        namespace_expr(arg, pkg_name, pkg_procs);
+                    }
+                    namespace_stmts(body, pkg_name, pkg_procs);
+                }
+                Stmt::Assign(_, expr, _) => namespace_expr(expr, pkg_name, pkg_procs),
+                _ => {}
+            }
+        }
+    }
+
+    fn namespace_expr(
+        expr: &mut Expr,
+        pkg_name: &str,
+        pkg_procs: &std::collections::HashSet<String>,
+    ) {
+        match expr {
+            Expr::Call(name, args) | Expr::ProcCall(name, args) => {
+                if pkg_procs.contains(name) {
+                    *name = format!("{}::{}", pkg_name, name);
+                }
+                for arg in args {
+                    namespace_expr(arg, pkg_name, pkg_procs);
+                }
+            }
+            Expr::BinOp(lhs, _, rhs) => {
+                namespace_expr(lhs, pkg_name, pkg_procs);
+                namespace_expr(rhs, pkg_name, pkg_procs);
+            }
+            Expr::UnOp(_, val) => namespace_expr(val, pkg_name, pkg_procs),
+            Expr::List(items) => {
+                for item in items {
+                    namespace_expr(item, pkg_name, pkg_procs);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Initial scan of program
+    for item in &program.items {
+        match item {
+            Item::Function(func) => scan_stmts(&func.body, &mut used_procedures),
+            Item::Procedure(_proc) => {
+                // Procedures are scanned when referenced by events (Functions) or other procedures.
+            }
+            _ => {}
+        }
+    }
+
+    // Also scan locally defined procedures that are used
+    // We need a map of all available procedures (local + package)
+    // Local procedures:
+    let mut available_procedures = HashMap::new();
+    for item in &program.items {
+        if let Item::Procedure(proc) = item {
+            available_procedures.insert(proc.name.clone(), (proc.clone(), false));
+            // false = not external/package
+        }
+    }
+
+    // Package procedures:
+    // We need to handle "use" statements to know which packages are imported
+    let mut imported_packages = std::collections::HashSet::new();
+    let mut package_queue = std::collections::VecDeque::new();
+
+    // Initial imports from "use" statements
+    for item in &program.items {
+        if let Item::Use(pkg_name) = item {
+            if imported_packages.insert(pkg_name.clone()) {
+                package_queue.push_back(pkg_name.clone());
+            }
+        }
+    }
+
+    // Transitive dependency resolution
+    while let Some(pkg_name) = package_queue.pop_front() {
+        if let Some(pkg) = packages.get(&pkg_name) {
+            for dep_name in &pkg.dependencies {
+                if imported_packages.insert(dep_name.clone()) {
+                    package_queue.push_back(dep_name.clone());
+                }
+            }
+        }
+    }
+
+    // Add imported package procedures to available_procedures
+    for (pkg_name, pkg) in packages {
+        if imported_packages.contains(pkg_name) {
+            ctx.used_packages.insert(pkg_name.clone());
+
+            // Check for return extension requirement
+            if !pkg.extensions.iter().any(|e| e == "return") {
+                let has_return = pkg.items.iter().any(|item| {
+                    if let Item::Procedure(proc) = item {
+                        contains_return(&proc.body)
+                    } else {
+                        false
+                    }
+                });
+
+                if has_return {
+                    return Err(anyhow::anyhow!(
+                          "Package '{}' uses return statements but does not declare the 'return' extension.",
+                          pkg_name
+                      ));
+                }
+            }
+
+            for item in &pkg.items {
+                if let Item::Procedure(proc) = item {
+                    // Register namespaced procedure (e.g., math::add)
+                    let mut namespaced_proc = proc.clone();
+                    namespaced_proc.name = format!("{}::{}", pkg_name, proc.name);
+                    available_procedures
+                        .insert(namespaced_proc.name.clone(), (namespaced_proc, true));
+                }
+            }
+        }
+    }
+
+    // Worklist algorithm for dependency resolution
+    let mut processed_procedures = std::collections::HashSet::new();
+    let mut worklist: Vec<String> = used_procedures.iter().cloned().collect();
+
+    while let Some(proc_name) = worklist.pop() {
+        if processed_procedures.contains(&proc_name) {
+            continue;
+        }
+        processed_procedures.insert(proc_name.clone());
+
+        if let Some((proc, is_external)) = available_procedures.get(&proc_name) {
+            let mut deps = std::collections::HashSet::new();
+            scan_stmts(&proc.body, &mut deps);
+
+            for dep in deps {
+                let resolved_dep = if *is_external {
+                    if dep.contains("::") {
+                        dep
+                    } else {
+                        let parts: Vec<&str> = proc_name.split("::").collect();
+                        if parts.len() == 2 {
+                            format!("{}::{}", parts[0], dep)
+                        } else {
+                            dep
+                        }
+                    }
+                } else {
+                    dep
+                };
+
+                if !processed_procedures.contains(&resolved_dep) {
+                    worklist.push(resolved_dep.clone());
+                    used_procedures.insert(resolved_dep);
+                }
+            }
+        }
+    }
+
+    // Register ALL local procedures into ctx.procedures
+    for item in &program.items {
+        if let Item::Procedure(proc) = item {
             let mut param_ids = Vec::new();
             for _ in &proc.params {
                 param_ids.push(Uuid::new_v4().to_string());
@@ -334,7 +613,136 @@ pub fn compile_target(
         }
     }
 
-    // Process Functions, Procedures and Comments
+    // Register used PACKAGE procedures into ctx.procedures
+    for proc_name in &used_procedures {
+        if let Some((proc, is_external)) = available_procedures.get(proc_name) {
+            if *is_external {
+                let mut param_ids = Vec::new();
+                for _ in &proc.params {
+                    param_ids.push(Uuid::new_v4().to_string());
+                }
+
+                let (proccode, arg_ids, arg_names) = if let Some((pattern, args)) = &proc.format {
+                    let mut proccode = String::new();
+                    let mut arg_ids = Vec::new();
+                    let mut arg_names = Vec::new();
+                    let mut used_params = std::collections::HashSet::new();
+
+                    // Prepend [package::proc]
+                    proccode.push_str(&format!("[{}] ", proc.name));
+
+                    let parts: Vec<&str> = pattern.split("{}").collect();
+                    for (i, part) in parts.iter().enumerate() {
+                        proccode.push_str(part);
+                        if i < parts.len() - 1 {
+                            if let Some(arg_name) = args.get(i) {
+                                if let Some(idx) =
+                                    proc.params.iter().position(|p| &p.name == arg_name)
+                                {
+                                    let param = &proc.params[idx];
+                                    match param.ty {
+                                        Type::Boolean => proccode.push_str("%b"),
+                                        Type::Number => proccode.push_str("%n"),
+                                        _ => proccode.push_str("%s"),
+                                    }
+                                    arg_ids.push(param_ids[idx].clone());
+                                    arg_names.push(param.name.clone());
+                                    used_params.insert(param.name.clone());
+                                } else {
+                                    proccode.push_str("%s");
+                                    arg_ids.push(Uuid::new_v4().to_string());
+                                    arg_names.push(arg_name.clone());
+                                }
+                            }
+                        }
+                    }
+
+                    // Append unused params
+                    for (i, param) in proc.params.iter().enumerate() {
+                        if !used_params.contains(&param.name) {
+                            match param.ty {
+                                Type::Boolean => proccode.push_str(" %b"),
+                                Type::Number => proccode.push_str(" %n"),
+                                _ => proccode.push_str(" %s"),
+                            }
+                            arg_ids.push(param_ids[i].clone());
+                            arg_names.push(param.name.clone());
+                        }
+                    }
+
+                    (proccode, arg_ids, arg_names)
+                } else {
+                    let mut proccode = proc.name.clone();
+                    let mut arg_ids = Vec::new();
+                    let mut arg_names = Vec::new();
+
+                    for (i, param) in proc.params.iter().enumerate() {
+                        match param.ty {
+                            Type::Boolean => proccode.push_str(" %b"),
+                            Type::Number => proccode.push_str(" %n"),
+                            _ => proccode.push_str(" %s"),
+                        }
+                        arg_ids.push(param_ids[i].clone());
+                        arg_names.push(param.name.clone());
+                    }
+                    (proccode, arg_ids, arg_names)
+                };
+
+                ctx.procedures.insert(
+                    proc.name.clone(), // This is already namespaced (e.g. math::add)
+                    ProcedureInfo {
+                        proccode,
+                        arg_ids,
+                        arg_names,
+                        param_ids,
+                        warp: proc.is_warp,
+                        return_type: proc.return_type.clone(),
+                    },
+                );
+            }
+        }
+    }
+
+    // Sort for deterministic output
+    let mut sorted_used: Vec<String> = used_procedures.into_iter().collect();
+    sorted_used.sort();
+
+    // Compile used PACKAGE procedures
+    for proc_name in &sorted_used {
+        if let Some((proc, is_external)) = available_procedures.get(proc_name) {
+            if *is_external {
+                // Namespace the procedure body
+                let parts: Vec<&str> = proc_name.split("::").collect();
+                if parts.len() == 2 {
+                    let pkg_name = parts[0];
+                    if let Some(pkg) = packages.get(pkg_name) {
+                        let pkg_procs: std::collections::HashSet<String> = pkg
+                            .items
+                            .iter()
+                            .filter_map(|i| {
+                                if let Item::Procedure(p) = i {
+                                    Some(p.name.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+
+                        let mut namespaced_proc = proc.clone();
+                        namespace_stmts(&mut namespaced_proc.body, pkg_name, &pkg_procs);
+                        compile_procedure(&namespaced_proc, &mut ctx);
+                    } else {
+                        // Should not happen
+                        compile_procedure(proc, &mut ctx);
+                    }
+                } else {
+                    compile_procedure(proc, &mut ctx);
+                }
+            }
+        }
+    }
+
+    // Process Globals/Variables/Local Items
     let mut last_stmt_id: Option<String> = None;
 
     for item in &program.items {
@@ -365,14 +773,61 @@ pub fn compile_target(
                 last_stmt_id = None; // Break chain
             }
             Item::Procedure(proc) => {
-                compile_procedure(proc, &mut ctx);
-                last_stmt_id = None; // Break chain
+                // Local procedures: only compile if used
+                if sorted_used.contains(&proc.name) {
+                    compile_procedure(proc, &mut ctx);
+                    last_stmt_id = None;
+                }
+            }
+            Item::Variable(decl) => {
+                if !is_stage && decl.visibility == Visibility::Public {
+                    continue;
+                }
+
+                if let Some(comment) = &decl.comment {
+                    ctx.add_comment(None, comment.clone(), 0.0, 0.0);
+                }
+
+                if let Type::List = decl.ty {
+                    let mut initial_values = Vec::new();
+                    if let Expr::List(exprs) = &decl.init {
+                        for e in exprs {
+                            match e {
+                                Expr::Number(n) => initial_values.push(json!(n)),
+                                Expr::String(s) => initial_values.push(json!(s)),
+                                Expr::Bool(b) => initial_values.push(json!(b)),
+                                _ => (),
+                            }
+                        }
+                    }
+                    ctx.add_list(decl.name.clone(), initial_values);
+                } else {
+                    let val = match &decl.init {
+                        Expr::Number(n) => json!(n),
+                        Expr::String(s) => json!(s),
+                        Expr::Bool(b) => json!(b),
+                        _ => json!(0),
+                    };
+                    ctx.add_variable(decl.name.clone(), val);
+                }
+            }
+            Item::Costume(decl) => {
+                ctx.add_costume(
+                    decl.name.clone(),
+                    decl.path.clone(),
+                    decl.x,
+                    decl.y,
+                    project_root,
+                );
+            }
+            Item::Sound(decl) => {
+                ctx.add_sound(decl.name.clone(), decl.path.clone(), project_root);
             }
             _ => {}
         }
     }
 
-    (
+    Ok((
         Target {
             is_stage,
             name: if is_stage {
@@ -411,7 +866,7 @@ pub fn compile_target(
             },
         },
         ctx.asset_instructions,
-    )
+    ))
 }
 
 fn compile_procedure(proc: &ProcedureDef, ctx: &mut CompilerContext) -> Option<String> {

@@ -9,6 +9,9 @@
 			"include": "#attributes"
 		},
 		{
+			"include": "#package-block"
+		},
+		{
 			"include": "#strings"
 		},
 		{
@@ -22,6 +25,30 @@
 		}
 	],
 	"repository": {
+		"package-block": {
+			"begin": "\\b(package)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(\\{)",
+			"beginCaptures": {
+				"1": { "name": "keyword.other.scrust" },
+				"2": { "name": "entity.name.type.package.scrust" },
+				"3": { "name": "punctuation.section.block.begin.scrust" }
+			},
+			"end": "(\\})",
+			"endCaptures": {
+				"1": { "name": "punctuation.section.block.end.scrust" }
+			},
+			"patterns": [
+				{ "include": "#comments" },
+				{
+					"match": "\\b(extensions|dependencies)\\b",
+					"name": "support.type.property-name.scrust"
+				},
+				{ "include": "#strings" },
+				{ "match": "=", "name": "punctuation.separator.key-value.scrust" },
+				{ "match": ",", "name": "punctuation.separator.scrust" },
+				{ "match": "\\[", "name": "punctuation.section.array.begin.scrust" },
+				{ "match": "\\]", "name": "punctuation.section.array.end.scrust" }
+			]
+		},
 		"comments": {
 			"patterns": [
 				{
@@ -53,7 +80,26 @@
 		"attributes": {
 			"patterns": [
 				{
-					"match": "(#\\[)\\s*(on_flag_clicked|on_key_pressed|on_broadcast_received|on_sprite_clicked|on_backdrop_switches|on_greater_than|on_clone_start)(?:\\(([^\\)]*)\\))?\\s*(\\])",
+					"begin": "(#\\[)\\s*(format|comment_hat)\\s*(\\()",
+					"beginCaptures": {
+						"1": { "name": "punctuation.definition.attribute.scrust" },
+						"2": { "name": "entity.name.function.attribute.scrust" },
+						"3": { "name": "punctuation.section.attribute.begin.scrust" }
+					},
+					"end": "(\\))\\s*(\\])",
+					"endCaptures": {
+						"1": { "name": "punctuation.section.attribute.end.scrust" },
+						"2": { "name": "punctuation.definition.attribute.scrust" }
+					},
+					"patterns": [
+						{ "include": "#strings" },
+						{ "include": "#numbers" },
+						{ "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b", "name": "variable.parameter.scrust" },
+						{ "match": ",", "name": "punctuation.separator.scrust" }
+					]
+				},
+				{
+					"match": "(#\\[)\\s*(on_flag_clicked|on_key_pressed|on_broadcast_received|on_sprite_clicked|on_backdrop_switches|on_greater_than|on_clone_start|warp|nowarp)(?:\\(([^\\)]*)\\))?\\s*(\\])",
 					"captures": {
 						"1": { "name": "punctuation.definition.attribute.scrust" },
 						"2": { "name": "entity.name.function.event.scrust" },
@@ -78,7 +124,7 @@
 				},
 				{
 					"name": "keyword.other.scrust",
-					"match": "\\b(fn|proc|private|public|costume|sound)\\b"
+					"match": "\\b(fn|proc|private|public|costume|sound|package|use)\\b"
 				},
 				{
 					"name": "storage.type.variable.scrust",
