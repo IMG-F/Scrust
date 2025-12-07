@@ -45,7 +45,7 @@ jobs:
       - name: Rename binary
         shell: bash
         run: |
-          BIN_NAME=$(basename $(pwd))
+          BIN_NAME="scrust"
           OUT_NAME="${BIN_NAME}-${{ matrix.target }}"
           mkdir dist
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
