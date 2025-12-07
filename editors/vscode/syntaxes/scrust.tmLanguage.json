@@ -21,6 +21,9 @@
 			"include": "#keywords"
 		},
 		{
+			"include": "#package-calls"
+		},
+		{
 			"include": "#functions"
 		}
 	],
@@ -48,6 +51,14 @@
 				{ "match": "\\[", "name": "punctuation.section.array.begin.scrust" },
 				{ "match": "\\]", "name": "punctuation.section.array.end.scrust" }
 			]
+		},
+		"package-calls": {
+			"match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(::)\\s*([a-zA-Z_][a-zA-Z0-9_]*)",
+			"captures": {
+				"1": { "name": "entity.name.namespace.scrust" },
+				"2": { "name": "punctuation.separator.scope-resolution.scrust" },
+				"3": { "name": "entity.name.function.scrust" }
+			}
 		},
 		"comments": {
 			"patterns": [
@@ -124,7 +135,14 @@
 				},
 				{
 					"name": "keyword.other.scrust",
-					"match": "\\b(fn|proc|private|public|costume|sound|package|use)\\b"
+					"match": "\\b(fn|proc|private|public|costume|sound|package)\\b"
+				},
+				{
+					"match": "\\b(use)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+					"captures": {
+						"1": { "name": "keyword.other.scrust" },
+						"2": { "name": "entity.name.namespace.scrust" }
+					}
 				},
 				{
 					"name": "storage.type.variable.scrust",
