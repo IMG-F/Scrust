@@ -257,6 +257,7 @@ fn func_call(input: &str) -> IResult<&str, (String, Vec<Expr>)> {
 fn attach_comment(stmt: Stmt, comment: String) -> Stmt {
     match stmt {
         Stmt::Assign(n, e, _) => Stmt::Assign(n, e, Some(comment)),
+        Stmt::Let(n, e, _) => Stmt::Let(n, e, Some(comment)),
         Stmt::Expr(e, _) => Stmt::Expr(e, Some(comment)),
         Stmt::If(c, t, e, _) => Stmt::If(c, t, e, Some(comment)),
         Stmt::Repeat(c, b, _) => Stmt::Repeat(c, b, Some(comment)),
@@ -279,6 +280,7 @@ fn stmt(input: &str) -> IResult<&str, Stmt> {
         stmt_forever,
         stmt_until,
         stmt_assign,
+        stmt_let,
         stmt_return,
         stmt_c_block,
         stmt_expr,
@@ -294,6 +296,17 @@ fn stmt_c_block(input: &str) -> IResult<&str, Stmt> {
     let (input, (name, args)) = ws(func_call)(input)?;
     let (input, body) = ws(block)(input)?;
     Ok((input, Stmt::CBlock(name, args, body, None)))
+}
+
+pub fn parse_block_only(input: &str) -> Result<Vec<Stmt>, nom::Err<nom::error::Error<&str>>> {
+    let (rest, stmts) = block(input)?;
+    if !rest.trim().is_empty() {
+        return Err(nom::Err::Error(nom::error::Error::new(
+            rest,
+            nom::error::ErrorKind::Eof,
+        )));
+    }
+    Ok(stmts)
 }
 
 fn block(input: &str) -> IResult<&str, Vec<Stmt>> {
@@ -387,6 +400,15 @@ fn stmt_assign(input: &str) -> IResult<&str, Stmt> {
         )),
         _ => unreachable!(),
     }
+}
+
+fn stmt_let(input: &str) -> IResult<&str, Stmt> {
+    let (input, _) = ws(tag("let"))(input)?;
+    let (input, name) = ws(identifier)(input)?;
+    let (input, _) = ws(char('='))(input)?;
+    let (input, val) = ws(expr)(input)?;
+    let (input, _) = ws(char(';'))(input)?;
+    Ok((input, Stmt::Let(name, val, None)))
 }
 
 fn stmt_return(input: &str) -> IResult<&str, Stmt> {

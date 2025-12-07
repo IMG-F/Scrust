@@ -25,21 +25,21 @@ export default defineConfig({
         ],
       },
       {
-        text: "Language Syntax",
+        text: "Language Guide",
         collapsed: false,
         items: [
           { text: "Overview", link: "/guide/syntax/" },
           { text: "Variables & Lists", link: "/guide/syntax/variables" },
-          { text: "Events", link: "/guide/syntax/events" },
+          { text: "Functions & Procedures", link: "/guide/syntax/procedures" },
           { text: "Control Flow", link: "/guide/syntax/control-flow" },
-          { text: "Functions", link: "/guide/syntax/procedures" },
-          { text: "Packages", link: "/guide/syntax/packages" },
+          { text: "Events", link: "/guide/syntax/events" },
           { text: "Operators", link: "/guide/syntax/operators" },
+          { text: "Packages", link: "/guide/syntax/packages" },
           { text: "Standard Blocks", link: "/guide/syntax/blocks" },
         ],
       },
       {
-        text: "Block List",
+        text: "Block Reference",
         collapsed: true,
         items: [
           { text: "Overview", link: "/guide/status/" },

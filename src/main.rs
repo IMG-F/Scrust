@@ -4,6 +4,7 @@ mod config;
 mod extension;
 mod parser;
 mod sb3;
+mod transform;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -165,6 +166,8 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
         );
     }
 
+    transform::transform_program(&mut stage_ast);
+
     // Pre-load sprites to extract public variables
     let mut sprite_data = Vec::new();
     if let Some(sprites) = &config.sprite {
@@ -180,7 +183,7 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
                 config_dir.join(&sprite.path)
             };
             let src = fs::read_to_string(&sprite_path)?;
-            let (rest, ast) = parser::parse_program(&src).map_err(|e| {
+            let (rest, mut ast) = parser::parse_program(&src).map_err(|e| {
                 anyhow::anyhow!(
                     "In sprite '{}': {}",
                     sprite.name.as_deref().unwrap_or("unknown"),
@@ -198,6 +201,8 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
                     .yellow()
                 );
             }
+
+            transform::transform_program(&mut ast);
 
             // Extract public variables and add to stage_ast
             for item in &ast.items {
@@ -437,7 +442,7 @@ path = "src/sprite.sr"
     fs::write(root.join("src").join("stage.sr"), stage_content)?;
 
     // src/sprite.sr
-    let sprite_content = r#"costume "costume1" "assets/sprite.svg";
+    let sprite_content = r#"costume "costume1" "assets/sprite.svg" 32 32;
 
 #[on_flag_clicked]
 fn start() {

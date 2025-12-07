@@ -79,6 +79,30 @@ change [SCORE v] by (1)
 </div>
 </div>
 
+## Scoped Variables (`let`)
+
+Scrust 0.2.1 introduces support for block-scoped variables using the `let` keyword. Unlike `var`, which corresponds to Scratch's global or sprite-local variables, `let` variables are managed by Scrust's memory system and are only valid within the block they are declared in.
+
+### Syntax
+
+```rust
+if condition {
+    let temp = 10;
+    // temp is valid here
+}
+// temp is NOT valid here
+```
+
+### Features
+
+1.  **Block Scope**: Variables are automatically cleaned up when the block ends.
+2.  **Shadowing**: You can declare a variable with the same name as one in an outer scope. The inner variable "shadows" the outer one.
+3.  **Recursion Support**: `let` variables are stored on a stack, making them safe for recursive functions and concurrent execution.
+
+::: tip Performance Note
+Using `let` enables Scrust's memory management system (allocating a list-based stack). This adds a small overhead to your project but enables powerful features like recursion and local scoping.
+:::
+
 ## Lists
 
 Lists are arrays of values. In Scrust, lists are dynamic and can hold numbers or strings.

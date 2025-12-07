@@ -98,6 +98,7 @@ pub enum Stmt {
         Option<Vec<Stmt>>,
         Option<String>,
     ),
+    Let(String, Expr, Option<String>),
     #[allow(dead_code)]
     Return(Option<Expr>, Option<String>),
     CBlock(String, Vec<Expr>, Vec<Stmt>, Option<String>),
