@@ -19,9 +19,6 @@ fn comment<'a, E: nom::error::ParseError<&'a str>>(input: &'a str) -> IResult<&'
                     return false;
                 }
                 if s.starts_with('/') {
-                    // If it starts with /, it's at least ///.
-                    // We accept //// (s starts with //) as ignored comment.
-                    // We reject /// (s starts with / but not //) as doc comment.
                     return s.starts_with("//");
                 }
                 true
@@ -257,13 +254,13 @@ fn func_call(input: &str) -> IResult<&str, (String, Vec<Expr>)> {
 fn attach_comment(stmt: Stmt, comment: String) -> Stmt {
     match stmt {
         Stmt::Assign(n, e, _) => Stmt::Assign(n, e, Some(comment)),
-        Stmt::Let(n, e, _) => Stmt::Let(n, e, Some(comment)),
         Stmt::Expr(e, _) => Stmt::Expr(e, Some(comment)),
         Stmt::If(c, t, e, _) => Stmt::If(c, t, e, Some(comment)),
         Stmt::Repeat(c, b, _) => Stmt::Repeat(c, b, Some(comment)),
         Stmt::Forever(b, _) => Stmt::Forever(b, Some(comment)),
         Stmt::Until(c, b, _) => Stmt::Until(c, b, Some(comment)),
         Stmt::Match(e, c, d, _) => Stmt::Match(e, c, d, Some(comment)),
+        Stmt::Let(n, e, _) => Stmt::Let(n, e, Some(comment)),
         Stmt::Return(e, _) => Stmt::Return(e, Some(comment)),
         Stmt::CBlock(n, a, b, _) => Stmt::CBlock(n, a, b, Some(comment)),
         Stmt::Comment(_) => stmt,
@@ -279,8 +276,8 @@ fn stmt(input: &str) -> IResult<&str, Stmt> {
         stmt_repeat,
         stmt_forever,
         stmt_until,
-        stmt_assign,
         stmt_let,
+        stmt_assign,
         stmt_return,
         stmt_c_block,
         stmt_expr,
@@ -292,12 +289,29 @@ fn stmt(input: &str) -> IResult<&str, Stmt> {
     Ok((input, s))
 }
 
+fn stmt_let(input: &str) -> IResult<&str, Stmt> {
+    let (input, _) = ws(tag("let"))(input)?;
+    let (input, name) = ws(identifier)(input)?;
+    let (input, _) = ws(char('='))(input)?;
+    let (input, val) = ws(expr)(input)?;
+    let (input, _) = ws(char(';'))(input)?;
+    Ok((input, Stmt::Let(name, val, None)))
+}
+
+fn stmt_return(input: &str) -> IResult<&str, Stmt> {
+    let (input, _) = ws(tag("return"))(input)?;
+    let (input, val) = opt(ws(expr))(input)?;
+    let (input, _) = ws(char(';'))(input)?;
+    Ok((input, Stmt::Return(val, None)))
+}
+
 fn stmt_c_block(input: &str) -> IResult<&str, Stmt> {
     let (input, (name, args)) = ws(func_call)(input)?;
     let (input, body) = ws(block)(input)?;
     Ok((input, Stmt::CBlock(name, args, body, None)))
 }
 
+#[allow(dead_code)]
 pub fn parse_block_only(input: &str) -> Result<Vec<Stmt>, nom::Err<nom::error::Error<&str>>> {
     let (rest, stmts) = block(input)?;
     if !rest.trim().is_empty() {
@@ -356,7 +370,7 @@ fn stmt_if(input: &str) -> IResult<&str, Stmt> {
 
 fn stmt_repeat(input: &str) -> IResult<&str, Stmt> {
     let (input, _) = ws(tag("repeat"))(input)?;
-    let (input, count) = delimited(ws(char('(')), ws(expr), ws(char(')')))(input)?;
+    let (input, count) = ws(expr)(input)?;
     let (input, body) = ws(block)(input)?;
     Ok((input, Stmt::Repeat(count, body, None)))
 }
@@ -376,7 +390,14 @@ fn stmt_until(input: &str) -> IResult<&str, Stmt> {
 
 fn stmt_assign(input: &str) -> IResult<&str, Stmt> {
     let (input, name) = ws(identifier)(input)?;
-    let (input, op) = ws(alt((tag("="), tag("+="), tag("-="))))(input)?;
+    let (input, op) = ws(alt((
+        tag("="),
+        tag("+="),
+        tag("-="),
+        tag("*="),
+        tag("/="),
+        tag("%="),
+    )))(input)?;
     let (input, val) = ws(expr)(input)?;
     let (input, _) = ws(char(';'))(input)?;
 
@@ -398,24 +419,32 @@ fn stmt_assign(input: &str) -> IResult<&str, Stmt> {
                 None,
             ),
         )),
+        "*=" => Ok((
+            input,
+            Stmt::Assign(
+                name.clone(),
+                Expr::BinOp(Box::new(Expr::Variable(name)), Op::Mul, Box::new(val)),
+                None,
+            ),
+        )),
+        "/=" => Ok((
+            input,
+            Stmt::Assign(
+                name.clone(),
+                Expr::BinOp(Box::new(Expr::Variable(name)), Op::Div, Box::new(val)),
+                None,
+            ),
+        )),
+        "%=" => Ok((
+            input,
+            Stmt::Assign(
+                name.clone(),
+                Expr::BinOp(Box::new(Expr::Variable(name)), Op::Mod, Box::new(val)),
+                None,
+            ),
+        )),
         _ => unreachable!(),
     }
-}
-
-fn stmt_let(input: &str) -> IResult<&str, Stmt> {
-    let (input, _) = ws(tag("let"))(input)?;
-    let (input, name) = ws(identifier)(input)?;
-    let (input, _) = ws(char('='))(input)?;
-    let (input, val) = ws(expr)(input)?;
-    let (input, _) = ws(char(';'))(input)?;
-    Ok((input, Stmt::Let(name, val, None)))
-}
-
-fn stmt_return(input: &str) -> IResult<&str, Stmt> {
-    let (input, _) = ws(tag("return"))(input)?;
-    let (input, val) = opt(ws(expr))(input)?;
-    let (input, _) = ws(char(';'))(input)?;
-    Ok((input, Stmt::Return(val, None)))
 }
 
 fn stmt_expr(input: &str) -> IResult<&str, Stmt> {
@@ -565,23 +594,6 @@ fn item_procedure(input: &str) -> IResult<&str, Item> {
     let is_warp = attributes.iter().any(|a| a.name == "warp")
         && !attributes.iter().any(|a| a.name == "nowarp");
 
-    let format_attr = attributes.iter().find(|a| a.name == "format");
-    let format = if let Some(attr) = format_attr {
-        if let Some(Expr::String(pattern)) = attr.args.first() {
-            let mut args = Vec::new();
-            for arg in attr.args.iter().skip(1) {
-                if let Expr::Variable(name) = arg {
-                    args.push(name.clone());
-                }
-            }
-            Some((pattern.clone(), args))
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
     Ok((
         input,
         Item::Procedure(ProcedureDef {
@@ -593,7 +605,6 @@ fn item_procedure(input: &str) -> IResult<&str, Item> {
             body,
             return_type,
             is_warp,
-            format,
             comment,
         }),
     ))
@@ -603,8 +614,15 @@ fn item_costume(input: &str) -> IResult<&str, Item> {
     let (input, _comment) = opt(ws(doc_comment))(input)?;
     let (input, _) = ws(tag("costume"))(input)?;
     let (input, name) = ws(string_literal)(input)?;
+    let (input, _) = opt(ws(char(',')))(input)?; // Optional comma
     let (input, path) = ws(string_literal)(input)?;
-    let (input, coords) = opt(pair(ws(number_literal), ws(number_literal)))(input)?;
+    let (input, coords) = opt(preceded(
+        opt(ws(char(','))),
+        pair(
+            ws(number_literal),
+            preceded(opt(ws(char(','))), ws(number_literal)),
+        ),
+    ))(input)?;
     let (input, _) = ws(char(';'))(input)?;
 
     let (x, y) = match coords {
@@ -619,6 +637,7 @@ fn item_sound(input: &str) -> IResult<&str, Item> {
     let (input, _comment) = opt(ws(doc_comment))(input)?;
     let (input, _) = ws(tag("sound"))(input)?;
     let (input, name) = ws(string_literal)(input)?;
+    let (input, _) = opt(ws(char(',')))(input)?; // Optional comma
     let (input, path) = ws(string_literal)(input)?;
     let (input, _) = ws(char(';'))(input)?;
     Ok((

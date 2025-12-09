@@ -1,4 +1,5 @@
 mod ast;
+mod codegen;
 mod compiler;
 mod config;
 mod extension;
@@ -52,6 +53,127 @@ fn main() -> Result<()> {
     }
 }
 
+fn generate_internal(
+    config_path: &PathBuf,
+    write_to_disk: bool,
+) -> Result<HashMap<PathBuf, String>> {
+    let mut generated_files = HashMap::new();
+    let config_str = fs::read_to_string(config_path)?;
+    let config: ScrustConfig = toml::from_str(&config_str)?;
+    let config_dir = config_path.parent().unwrap();
+    let dist_dir = config_dir.join("dist");
+
+    if write_to_disk {
+        fs::create_dir_all(&dist_dir)?;
+    }
+
+    // Load Packages
+    let mut packages_map = HashMap::new();
+    if let Some(package_paths) = &config.project.packages {
+        for package_path_str in package_paths {
+            let package_path = if PathBuf::from(package_path_str).is_absolute() {
+                PathBuf::from(package_path_str)
+            } else {
+                config_dir.join(package_path_str)
+            };
+
+            let src = fs::read_to_string(&package_path)
+                .with_context(|| format!("Failed to read package file: {}", package_path_str))?;
+
+            let (rest, program) = parser::parse_program(&src).map_err(|e| {
+                anyhow::anyhow!(
+                    "In package '{}': {}",
+                    package_path_str,
+                    format_parse_error(e, &src)
+                )
+            })?;
+            if !rest.trim().is_empty() {
+                println!(
+                    "{}",
+                    format!(
+                        "Warning: Package {} parsing stopped early. Remaining: {:.50}...",
+                        package_path_str, rest
+                    )
+                    .yellow()
+                );
+            }
+
+            let mut package_def = None;
+            let mut items = Vec::new();
+
+            for item in program.items {
+                if let ast::Item::Package(pkg) = item {
+                    package_def = Some(pkg);
+                } else {
+                    items.push(item);
+                }
+            }
+
+            if let Some(mut pkg) = package_def {
+                pkg.items = items;
+                packages_map.insert(pkg.name.clone(), pkg);
+            }
+        }
+    }
+
+    // Process Stage
+    let stage_path = if config.stage.path.is_absolute() {
+        config.stage.path.clone()
+    } else {
+        config_dir.join(&config.stage.path)
+    };
+    let stage_src = fs::read_to_string(&stage_path)?;
+    let (_, mut stage_ast) = parser::parse_program(&stage_src)
+        .map_err(|e| anyhow::anyhow!("{}", format_parse_error(e, &stage_src)))?;
+
+    transform::transform_program(&mut stage_ast, &packages_map);
+
+    let gen = codegen::CodeGenerator::new();
+    let stage_out = gen.generate(&stage_ast);
+
+    generated_files.insert(stage_path.clone(), stage_out.clone());
+
+    if write_to_disk {
+        let stage_out_path = dist_dir.join(stage_path.file_name().unwrap());
+        fs::write(&stage_out_path, stage_out)?;
+        println!("Generated {}", stage_out_path.display());
+    }
+
+    // Process Sprites
+    if let Some(sprites) = &config.sprite {
+        for sprite in sprites {
+            let sprite_path = if sprite.path.is_absolute() {
+                sprite.path.clone()
+            } else {
+                config_dir.join(&sprite.path)
+            };
+            let src = fs::read_to_string(&sprite_path)?;
+            let (_, mut ast) = parser::parse_program(&src).map_err(|e| {
+                anyhow::anyhow!(
+                    "In sprite '{}': {}",
+                    sprite.name.as_deref().unwrap_or("unknown"),
+                    format_parse_error(e, &src)
+                )
+            })?;
+
+            transform::transform_program(&mut ast, &packages_map);
+
+            let gen = codegen::CodeGenerator::new();
+            let out = gen.generate(&ast);
+
+            generated_files.insert(sprite_path.clone(), out.clone());
+
+            if write_to_disk {
+                let out_path = dist_dir.join(sprite_path.file_name().unwrap());
+                fs::write(&out_path, out)?;
+                println!("Generated {}", out_path.display());
+            }
+        }
+    }
+
+    Ok(generated_files)
+}
+
 fn format_parse_error(e: nom::Err<Error<&str>>, src: &str) -> String {
     match e {
         nom::Err::Error(e) | nom::Err::Failure(e) => {
@@ -70,6 +192,9 @@ fn format_parse_error(e: nom::Err<Error<&str>>, src: &str) -> String {
 }
 
 fn build(config_path: PathBuf, debug: bool) -> Result<()> {
+    // 1. Run silent generation
+    let generated_files = generate_internal(&config_path, debug)?; // Only write to disk if debug is true
+
     println!("{}", "Building project...".blue().bold());
     let config_str = fs::read_to_string(&config_path)?;
     let config: ScrustConfig = toml::from_str(&config_str)?;
@@ -79,6 +204,7 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
     let mut package_extensions = Vec::new();
 
     if let Some(package_paths) = &config.project.packages {
+        // ... (Package loading logic remains same as it reads external files)
         for package_path_str in package_paths {
             if debug {
                 println!("included packages {}", package_path_str);
@@ -152,7 +278,13 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
         config_dir.join(&config.stage.path)
     };
 
-    let stage_src = fs::read_to_string(&stage_path)?;
+    // Use generated source if available, otherwise read from file (fallback)
+    let stage_src = if let Some(src) = generated_files.get(&stage_path) {
+        src.clone()
+    } else {
+        fs::read_to_string(&stage_path)?
+    };
+
     let (rest, mut stage_ast) = parser::parse_program(&stage_src)
         .map_err(|e| anyhow::anyhow!("{}", format_parse_error(e, &stage_src)))?;
     if !rest.trim().is_empty() {
@@ -166,7 +298,7 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
         );
     }
 
-    transform::transform_program(&mut stage_ast);
+    transform::transform_program(&mut stage_ast, &packages_map);
 
     // Pre-load sprites to extract public variables
     let mut sprite_data = Vec::new();
@@ -182,7 +314,14 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
             } else {
                 config_dir.join(&sprite.path)
             };
-            let src = fs::read_to_string(&sprite_path)?;
+
+            // Use generated source if available
+            let src = if let Some(s) = generated_files.get(&sprite_path) {
+                s.clone()
+            } else {
+                fs::read_to_string(&sprite_path)?
+            };
+
             let (rest, mut ast) = parser::parse_program(&src).map_err(|e| {
                 anyhow::anyhow!(
                     "In sprite '{}': {}",
@@ -202,7 +341,7 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
                 );
             }
 
-            transform::transform_program(&mut ast);
+            transform::transform_program(&mut ast, &packages_map);
 
             // Extract public variables and add to stage_ast
             for item in &ast.items {
@@ -335,7 +474,7 @@ fn build(config_path: PathBuf, debug: bool) -> Result<()> {
         meta: sb3::Meta {
             semver: "3.0.0".to_string(),
             vm: "0.2.0".to_string(),
-            agent: "Scrust 0.1.5".to_string(),
+            agent: "Scrust 0.2.2".to_string(),
         },
     };
 
