@@ -118,11 +118,7 @@ define animate_movement
 
 ## Returning Values
 
-You can define a return type for a procedure and return values from it.
-
-> [!WARNING]
-> **Extension Feature**
-> Returning values from procedures is **not supported in vanilla Scratch 3.0**. This feature uses custom opcodes (`procedures_return`) that work in **TurboWarp** and other modified Scratch environments. If you load the project in vanilla Scratch, these blocks may appear as undefined.
+You can define a return type for a procedure and return values from it. Scrust compiles this into standard Scratch blocks (using lists/variables), so it is fully compatible with vanilla Scratch 3.0.
 
 ```rust
 proc add(a: number, b: number) -> number {
@@ -140,89 +136,34 @@ return ((a) + (b))
 say (add (10) (20) :: custom)
 </pre>
 
-## Custom Block Formatting
-
-You can customize the text and layout of your procedure block using the `#[format(...)]` attribute. This allows you to create blocks that read more like natural sentences, just like built-in Scratch blocks.
-
-### Basic Formatting
-
-Use the `#[format]` attribute with a string containing `{}` placeholders. The arguments following the string match the procedure parameters.
-
-```rust
-#[format("say {} to {}", message, target)]
-proc greet(target: string, message: string) {
-    say(join(message, join(", ", target)));
-}
-```
-
-<pre class="blocks">
-define say (message) to (target)
-say (join (message) (join [, ] (target)))
-</pre>
-
-### Unused Parameters
-
-Any parameters defined in the procedure but not included in the `#[format]` string will be automatically appended to the end of the block.
-
-```rust
-#[format("update score: {}", score)]
-proc update(score: number, hidden_param: boolean) {
-    // ...
-}
-```
-
-<pre class="blocks">
-define update score: (score) &lt;hidden_param&gt;
-</pre>
-
-### Combining with Warp
-
-You can use `#[format]` together with `#[warp]` or `#[nowarp]` to control both appearance and execution speed.
-
-```rust
-#[format("{} + {}", a, b)]
-#[warp]
-proc fast_add(a: number, b: number) -> number {
-    return a + b;
-}
-```
-
 ## Comprehensive Example
 
-Here is a complete example demonstrating various procedure features, including custom formatting, warp modes, and parameter handling.
+Here is a complete example demonstrating various procedure features, including warp modes and parameter handling.
 
 <div class="comparison">
 <div>
 <h4>Scrust</h4>
 
 ```rust
-#[format("{} + {}", a, b)]
 #[warp]
 proc add(a: number, b: number) -> number {
     return a + b;
 }
 
-#[format("say {} to {}", msg, name)]
 #[nowarp]
 proc greet(name: string, msg: string) {
     say(join(msg, join(", ", name)));
 }
 
-#[format("param2: {}", p2)]
-proc partial_format(p1: number, p2: number) {
+proc simple_proc(p1: number, p2: number) {
     say(join("p1: ", join(p1, join(", p2: ", p2))));
-}
-
-proc no_format(val: string) {
-    say(join("Default: ", val));
 }
 
 #[on_flag_clicked]
 fn main() {
     say(add(1, 2));
     greet("World", "Hello");
-    partial_format(10, 20);
-    no_format("test");
+    simple_proc(10, 20);
 }
 ```
 
@@ -231,23 +172,19 @@ fn main() {
 <h4>Scratch</h4>
 
 <pre class="blocks">
-define (a) + (b)
+define add (a) (b)
 return ((a) + (b))
 
-define say (msg) to (name)
+define greet (name) (msg)
 say (join (msg) (join [, ] (name)))
 
-define param2: (p2) (p1)
+define simple_proc (p1) (p2)
 say (join [p1: ] (join (p1) (join [, p2: ] (p2))))
 
-define no_format (val)
-say (join [Default: ] (val))
-
 when flag clicked
-say ((1) + (2) :: custom)
-say [Hello] to [World] :: custom
-param2: (20) (10) :: custom
-no_format [test] :: custom
+say (add (1) (2) :: custom)
+greet [World] [Hello] :: custom
+simple_proc (10) (20) :: custom
 </pre>
 
 </div>

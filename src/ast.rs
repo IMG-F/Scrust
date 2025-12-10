@@ -38,8 +38,7 @@ pub struct ProcedureDef {
     pub params: Vec<Param>,
     pub body: Vec<Stmt>,
     pub return_type: Option<Type>,
-    pub is_warp: bool,                         // Run without screen refresh
-    pub format: Option<(String, Vec<String>)>, // Custom format: (pattern, args)
+    pub is_warp: bool,          // Run without screen refresh
     pub comment: Option<String>,
 }
 
@@ -98,6 +97,7 @@ pub enum Stmt {
         Option<Vec<Stmt>>,
         Option<String>,
     ),
+    #[allow(dead_code)]
     Let(String, Expr, Option<String>),
     #[allow(dead_code)]
     Return(Option<Expr>, Option<String>),
